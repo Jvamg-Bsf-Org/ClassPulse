@@ -12,6 +12,17 @@
  *   - imobilidade: celular parado (sem variação de aceleração) por um tempo,
  *     não importa a orientação — cobre quem só deixa o celular quieto na mesa
  *     sem virar, ou guardado na bolsa/bolso.
+ *
+ * Limite conhecido: enquanto a aba está oculta, os sensores não disparam (todo
+ * navegador mobile suspende isso em segundo plano por bateria) — então se o
+ * aluno sair da aba ANTES de confirmar proteção, e só virar/guardar o celular
+ * depois de já estar escondido, a gente não vê esse gesto. Pra não punir esse
+ * erro de timing como se fosse distração o tempo todo, `janelaConfirmacaoTardiaMs`
+ * dá um "benefício da dúvida": só os primeiros segundos escondido-sem-confirmar
+ * contam como distração; se continuar escondido além disso sem voltar, o resto
+ * passa a contar como foco. Curto (tipo checar o Instagram e voltar rápido)
+ * continua contando 100% como distração — só a ausência longa é que ganha o
+ * desconto.
  */
 
 export type MotivoProtecao = "orientacao" | "imobilidade";
@@ -30,6 +41,8 @@ export interface FocusSessionOptions extends FocusSessionEvents {
   janelaImobilidadeMs?: number;
   /** Variação máxima de aceleração (m/s², entre amostras) tolerada como "parado". */
   limiarImobilidade?: number;
+  /** Quanto tempo (ms) escondido-sem-confirmar ainda conta como distração antes do benefício da dúvida entrar. */
+  janelaConfirmacaoTardiaMs?: number;
 }
 
 export type EstadoFocoSessao =
@@ -49,6 +62,7 @@ const DEFAULTS = {
   toleranciaFaceDownGraus: 30,
   janelaImobilidadeMs: 2500,
   limiarImobilidade: 0.5,
+  janelaConfirmacaoTardiaMs: 20_000,
 } as const;
 
 export class FocusSession {
@@ -62,6 +76,9 @@ export class FocusSession {
 
   private ultimaMagnitude: number | null = null;
   private amostrasMotion: { t: number; delta: number }[] = [];
+
+  /** Timestamp de quando começou a ficar oculto sem confirmação prévia — null fora desse caso. */
+  private ocultoSemConfirmacaoDesde: number | null = null;
 
   private readonly opts: FocusSessionOptions;
 
@@ -109,8 +126,12 @@ export class FocusSession {
       this.motivoProtegido = null;
       this.amostrasMotion = [];
       this.ultimaMagnitude = null;
+      this.ocultoSemConfirmacaoDesde = null;
+    } else if (this.protegido) {
+      this.transicionar("focado");
     } else {
-      this.transicionar(this.protegido ? "focado" : "distraido");
+      this.transicionar("distraido");
+      this.ocultoSemConfirmacaoDesde = this.ultimaTransicaoEm;
     }
     this.opts.onVisibilidadeChange?.(visivel);
   }
@@ -130,9 +151,19 @@ export class FocusSession {
 
   private acumularTempo(): void {
     const agora = this.agora();
-    const decorridoSegundos = (agora - this.ultimaTransicaoEm) / 1000;
-    if (this.estado === "focado") this.focoSegundosAcumulado += decorridoSegundos;
-    if (this.estado === "distraido") this.distracaoSegundosAcumulado += decorridoSegundos;
+
+    if (this.estado === "focado") {
+      this.focoSegundosAcumulado += (agora - this.ultimaTransicaoEm) / 1000;
+    } else if (this.estado === "distraido") {
+      const janela = this.opts.janelaConfirmacaoTardiaMs ?? DEFAULTS.janelaConfirmacaoTardiaMs;
+      const fimDaTolerancia = (this.ocultoSemConfirmacaoDesde ?? this.ultimaTransicaoEm) + janela;
+      // até `fimDaTolerancia` conta como distração; o que passar disso (ainda escondido,
+      // sem ter voltado) ganha o benefício da dúvida e passa a contar como foco.
+      const corte = Math.min(agora, Math.max(this.ultimaTransicaoEm, fimDaTolerancia));
+      this.distracaoSegundosAcumulado += (corte - this.ultimaTransicaoEm) / 1000;
+      this.focoSegundosAcumulado += (agora - corte) / 1000;
+    }
+
     this.ultimaTransicaoEm = agora;
   }
 
