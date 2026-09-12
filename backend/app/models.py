@@ -92,12 +92,19 @@ class Participacao(SQLModel, table=True):
     score_aprendizagem: int = Field(default=0)
 
 
+class StatusPartida(str, Enum):
+    em_andamento = "em_andamento"
+    encerrada = "encerrada"
+
+
 class Quiz(SQLModel, table=True):
     __tablename__ = "quizzes"
 
     id: int | None = Field(default=None, primary_key=True)
-    aula_id: int = Field(foreign_key="aulas.id", index=True)
+    professor_id: int | None = Field(default=None, foreign_key="professores.id", index=True)
+    aula_id: int | None = Field(default=None, foreign_key="aulas.id", index=True)
     titulo: str
+    descricao: str | None = Field(default=None)
     modo_execucao: ModoExecucaoQuiz = Field(default=ModoExecucaoQuiz.individual)
     competitivo: bool = Field(default=False)
     obrigatorio: bool = Field(default=True)
@@ -113,6 +120,8 @@ class Pergunta(SQLModel, table=True):
     enunciado: str
     tipo: TipoPergunta = Field(default=TipoPergunta.multipla_escolha)
     ordem: int = Field(default=0)
+    pontos: int = Field(default=100)
+    explicacao: str | None = Field(default=None)
 
 
 class Alternativa(SQLModel, table=True):
@@ -124,11 +133,30 @@ class Alternativa(SQLModel, table=True):
     correta: bool = Field(default=False)
 
 
+class Partida(SQLModel, table=True):
+    __tablename__ = "partidas"
+
+    id: int | None = Field(default=None, primary_key=True)
+    aula_id: int = Field(foreign_key="aulas.id", index=True)
+    quiz_id: int = Field(foreign_key="quizzes.id", index=True)
+    status: StatusPartida = Field(default=StatusPartida.em_andamento)
+    modo_execucao: ModoExecucaoQuiz = Field(default=ModoExecucaoQuiz.individual)
+    competitivo: bool = Field(default=False)
+    obrigatorio: bool = Field(default=True)
+    meta_coletiva_percentual: int | None = Field(default=None)
+    tempo_limite_segundos: int | None = Field(default=None)
+    discussao_ate: datetime | None = Field(default=None)
+    expira_em: datetime | None = Field(default=None)
+    iniciada_em: datetime = Field(default_factory=datetime.utcnow)
+    encerrada_em: datetime | None = Field(default=None)
+
+
 class Grupo(SQLModel, table=True):
     __tablename__ = "grupos"
 
     id: int | None = Field(default=None, primary_key=True)
-    quiz_id: int = Field(foreign_key="quizzes.id", index=True)
+    quiz_id: int | None = Field(default=None, foreign_key="quizzes.id", index=True)
+    partida_id: int | None = Field(default=None, foreign_key="partidas.id", index=True)
     nome_ou_numero: str
 
 
@@ -143,6 +171,7 @@ class Resposta(SQLModel, table=True):
     __tablename__ = "respostas"
 
     id: int | None = Field(default=None, primary_key=True)
+    partida_id: int | None = Field(default=None, foreign_key="partidas.id", index=True)
     pergunta_id: int = Field(foreign_key="perguntas.id", index=True)
     participacao_id: int | None = Field(default=None, foreign_key="participacoes.id", index=True)
     grupo_id: int | None = Field(default=None, foreign_key="grupos.id", index=True)
@@ -150,3 +179,13 @@ class Resposta(SQLModel, table=True):
     resposta_texto: str | None = Field(default=None)
     correta: bool | None = Field(default=None)
     respondido_em: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PartidaPulo(SQLModel, table=True):
+    __tablename__ = "partida_pulos"
+
+    id: int | None = Field(default=None, primary_key=True)
+    partida_id: int = Field(foreign_key="partidas.id", index=True)
+    participacao_id: int = Field(foreign_key="participacoes.id", index=True)
+    pulou_em: datetime = Field(default_factory=datetime.utcnow)
+

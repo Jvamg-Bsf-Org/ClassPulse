@@ -48,3 +48,23 @@ def get_current_aluno(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Aluno não encontrado")
 
     return aluno
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    session: Session = Depends(get_session),
+) -> tuple[str, Aluno | Professor]:
+    payload = _get_token_payload(credentials)
+    if payload.tipo == "professor":
+        professor = session.get(Professor, payload.usuario_id)
+        if professor is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Professor não encontrado")
+        return ("professor", professor)
+    elif payload.tipo == "aluno":
+        aluno = session.get(Aluno, payload.usuario_id)
+        if aluno is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Aluno não encontrado")
+        return ("aluno", aluno)
+    else:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Tipo de usuário inválido")
+
