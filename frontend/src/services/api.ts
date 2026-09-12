@@ -28,7 +28,35 @@ export function clearAuth() {
   localStorage.removeItem('cp_role')
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/**
+ * Só existe uma renovação de token por vez -- se várias chamadas tomam 401
+ * juntas (ex: página fica minutos em background e várias requisições
+ * disparam ao voltar), todas esperam a mesma promise em vez de bater no
+ * /auth/refresh em paralelo.
+ */
+let renovacaoEmAndamento: Promise<boolean> | null = null
+
+function tentarRenovarToken(): Promise<boolean> {
+  if (!renovacaoEmAndamento) {
+    renovacaoEmAndamento = fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        if (!res.ok) return false
+        const data: TokenResponse = await res.json()
+        setToken(data.access_token, data.tipo)
+        return true
+      })
+      .catch(() => false)
+      .finally(() => {
+        renovacaoEmAndamento = null
+      })
+  }
+  return renovacaoEmAndamento
+}
+
+async function request<T>(path: string, options: RequestInit = {}, jaTentouRenovar = false): Promise<T> {
   const token = getToken()
   const headers = new Headers(options.headers || {})
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
@@ -42,6 +70,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers,
   })
+
+  // Access token dura só 30min -- uma aula inteira facilmente passa disso.
+  // Em vez de deslogar o aluno/professor no meio da aula, renova sozinho
+  // usando o refresh token (cookie httponly) e repete a chamada original.
+  if (res.status === 401 && !jaTentouRenovar) {
+    const renovou = await tentarRenovarToken()
+    if (renovou) {
+      return request<T>(path, options, true)
+    }
+    clearAuth()
+    window.dispatchEvent(new Event('classpulse:sessao-expirada'))
+  }
 
   if (!res.ok) {
     let msg = `Erro ${res.status}`
@@ -88,6 +128,10 @@ export async function cadastrarAluno(nome: string, email: string, senha: string)
     method: 'POST',
     body: JSON.stringify({ nome, email, senha }),
   })
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
 }
 
 // Turmas

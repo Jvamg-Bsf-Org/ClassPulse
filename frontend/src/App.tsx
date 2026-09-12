@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import AlunoApp from './components/AlunoApp'
 import LoginScreen from './components/LoginScreen'
 import ProfessorApp from './components/ProfessorApp'
-import { clearAuth, getRole, getToken } from './services/api'
+import { clearAuth, getRole, getToken, logout } from './services/api'
 import { useIsMobile } from './hooks/useIsMobile'
 
 export default function App() {
@@ -11,7 +11,18 @@ export default function App() {
 
   const [logado, setLogado] = useState(() => !!getToken() && getRole() === role)
 
+  // Disparado pelo api.ts quando o refresh token também já expirou/é
+  // inválido -- aí sim precisa voltar pro login, não tem mais o que renovar.
+  useEffect(() => {
+    function aoExpirar() {
+      setLogado(false)
+    }
+    window.addEventListener('classpulse:sessao-expirada', aoExpirar)
+    return () => window.removeEventListener('classpulse:sessao-expirada', aoExpirar)
+  }, [])
+
   function handleSair() {
+    logout()
     clearAuth()
     setLogado(false)
   }
