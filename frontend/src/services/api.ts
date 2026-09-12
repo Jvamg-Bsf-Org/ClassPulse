@@ -241,16 +241,50 @@ export async function obterResultados(partidaId: number): Promise<PartidaResulta
   return request<PartidaResultado>(`/partidas/${partidaId}/resultados`)
 }
 
-export function conectarWebSocketAula(aulaId: number, onMensagem: (data: any) => void): WebSocket {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const ws = new WebSocket(`${protocol}//${window.location.host}/ws/aulas/${aulaId}`)
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      onMensagem(data)
-    } catch {
-      // ignore
+export interface ConexaoAula {
+  close(): void
+}
+
+/**
+ * Reconecta sozinho se a conexão cair (rede de escola, extensão do navegador
+ * ou proxy que derruba WebSocket sem avisar) — sem isso, o aluno fica preso
+ * numa tela desatualizada até dar refresh na página manualmente.
+ */
+export function conectarWebSocketAula(aulaId: number, onMensagem: (data: any) => void): ConexaoAula {
+  let fechadoDeProposito = false
+  let ws: WebSocket | null = null
+  let tentativa = 0
+
+  function conectar() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws/aulas/${aulaId}`)
+
+    ws.onmessage = (event) => {
+      try {
+        onMensagem(JSON.parse(event.data))
+      } catch {
+        // ignore
+      }
+    }
+
+    ws.onopen = () => {
+      tentativa = 0
+    }
+
+    ws.onclose = () => {
+      if (fechadoDeProposito) return
+      const espera = Math.min(1000 * 2 ** tentativa, 15000)
+      tentativa += 1
+      setTimeout(conectar, espera)
     }
   }
-  return ws
+
+  conectar()
+
+  return {
+    close() {
+      fechadoDeProposito = true
+      ws?.close()
+    },
+  }
 }

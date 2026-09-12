@@ -175,29 +175,3 @@ describe("FocusSession — esconder sem nunca confirmar", () => {
     expect(r.distracaoSegundos).toBe(15);
   });
 });
-
-describe("FocusSession — sensoresDisponiveis: false (permissão negada ou sem suporte)", () => {
-  it("esconder sem confirmar conta como foco direto, já que não dá pra exigir prova que não existe", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000, sensoresDisponiveis: false });
-
-    s.reportarVisibilidade(false); // nunca teve como confirmar
-    relogio.avancar(40_000);
-    s.reportarVisibilidade(true);
-
-    const r = s.resumo();
-    expect(r.focoSegundos).toBe(40);
-    expect(r.distracaoSegundos).toBe(0);
-  });
-
-  it("mas ficar visível segurando o celular além da janela AINDA conta como distração (não depende de sensor)", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000, sensoresDisponiveis: false });
-
-    relogio.avancar(30_000); // visível o tempo todo, nunca escondeu
-
-    const r = s.resumo();
-    expect(r.distracaoSegundos).toBe(10);
-    expect(r.focoSegundos).toBe(0);
-  });
-});

@@ -6,6 +6,7 @@ import {
   loginProfessor,
   setToken,
 } from '../services/api'
+import { solicitarPermissaoSensores } from '../focus/sensors'
 
 interface Props {
   role: 'professor' | 'aluno'
@@ -24,6 +25,15 @@ export default function LoginScreen({ role, onLogado }: Props) {
     e.preventDefault()
     setErro(null)
     setEnviando(true)
+
+    if (role === 'aluno') {
+      // Disparado aqui de propósito: é o toque do usuário, precisa ser síncrono
+      // com o clique (principalmente no iOS). Não bloqueia o login nem aparece
+      // pro aluno — é só uma tentativa antecipada; a checagem que decide de
+      // verdade acontece de novo (e é obrigatória) na hora de entrar na aula.
+      solicitarPermissaoSensores().catch(() => {})
+    }
+
     try {
       const resp =
         modo === 'login'

@@ -25,11 +25,9 @@
  *     sem perdão, desde o segundo 0 — ele não provou que guardou.
  *   - toda volta pra tela reseta tudo: a próxima sumida exige confirmação nova.
  *
- * Exceção: se o navegador não suporta os sensores ou a permissão foi negada
- * (`sensoresDisponiveis: false`), não dá pra exigir uma prova que estruturalmente
- * não existe — nesse caso esconder já conta como foco direto. O lado "visível
- * segurando o celular além da janela = distração" continua valendo igual, já
- * que isso não depende de sensor.
+ * Sem sensor confirmado não tem "modo generoso" aqui -- essa decisão é tomada
+ * antes, no gate de entrada da aula (ver AlunoApp): sem sensor, o aluno nem
+ * entra. Então dentro desta classe, chegar aqui já significa sensor ativo.
  */
 
 export type MotivoProtecao = "orientacao" | "imobilidade";
@@ -50,8 +48,6 @@ export interface FocusSessionOptions extends FocusSessionEvents {
   limiarImobilidade?: number;
   /** Tempo de reação (ms) visível-sem-confirmar antes de começar a contar como distração. */
   janelaReacaoMs?: number;
-  /** false se o navegador não suporta os sensores ou a permissão foi negada. Default: true. */
-  sensoresDisponiveis?: boolean;
 }
 
 export type EstadoFocoSessao =
@@ -137,7 +133,7 @@ export class FocusSession {
       this.motivoProtegido = null;
       this.amostrasMotion = [];
       this.ultimaMagnitude = null;
-    } else if (this.protegido || this.opts.sensoresDisponiveis === false) {
+    } else if (this.protegido) {
       this.transicionar("focado");
     } else {
       this.transicionar("distraido");

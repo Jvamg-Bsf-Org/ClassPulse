@@ -9,7 +9,7 @@ import {
 } from '../services/api'
 import type { PartidaAlunoStatus } from '../types/game'
 import { FocusSession, type ResumoFocoSessao } from '../focus/focusSession'
-import { iniciarSessaoDeFoco, sensoresSuportados, solicitarPermissaoSensores, type SessaoAtiva } from '../focus/sensors'
+import { iniciarSessaoDeFoco, solicitarPermissaoSensores, type SessaoAtiva } from '../focus/sensors'
 import StudentGameView from './StudentGameView'
 
 export default function AlunoApp() {
@@ -20,7 +20,6 @@ export default function AlunoApp() {
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
-  const [permissaoSensor, setPermissaoSensor] = useState<'nao_pedida' | 'concedida' | 'negada'>('nao_pedida')
   const [resumoFoco, setResumoFoco] = useState<ResumoFocoSessao | null>(null)
   const [partida, setPartida] = useState<PartidaAlunoStatus | null>(null)
 
@@ -36,7 +35,7 @@ export default function AlunoApp() {
 
   function iniciarFoco() {
     pararSessaoDeFoco()
-    const ativa = iniciarSessaoDeFoco({ sensoresDisponiveis: permissaoSensor === 'concedida' })
+    const ativa = iniciarSessaoDeFoco()
     sessaoRef.current = ativa
     focusSessionRef.current = ativa.sessao
   }
@@ -54,6 +53,17 @@ export default function AlunoApp() {
     setErro(null)
     setEnviando(true)
     try {
+      // Gate: sem confirmar sensor de verdade, nem tenta entrar. É proposital
+      // não explicar o motivo técnico pro aluno -- só uma mensagem genérica.
+      const sensorOk = await solicitarPermissaoSensores()
+      if (!sensorOk) {
+        setErro(
+          'Não conseguimos ativar o app neste navegador. Tente pelo Chrome ou Safari mais recente, sem bloqueadores ativos.'
+        )
+        setEnviando(false)
+        return
+      }
+
       const a = await entrarAula(codigoAula.trim())
       setAula(a)
       if (a.modo_atual === 'foco') iniciarFoco()
@@ -79,11 +89,6 @@ export default function AlunoApp() {
     } finally {
       setEnviando(false)
     }
-  }
-
-  async function handleAtivarSensores() {
-    const ok = await solicitarPermissaoSensores()
-    setPermissaoSensor(ok ? 'concedida' : 'negada')
   }
 
   // WebSocket da aula: reage a mudança de modo e eventos de partida
@@ -186,17 +191,6 @@ export default function AlunoApp() {
 
   return (
     <div style={{ padding: '1rem', maxWidth: 480, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          Sensores: {sensoresSuportados() ? permissaoSensor : 'indisponível neste navegador'}
-        </span>
-        {sensoresSuportados() && permissaoSensor !== 'concedida' && (
-          <button className="btn-ghost" onClick={handleAtivarSensores}>
-            Ativar sensores
-          </button>
-        )}
-      </div>
-
       {partida ? (
         <StudentGameView status={partida} onAtualizarStatus={() => carregarPartida(aula.id)} />
       ) : aula.modo_atual === 'livre' ? (
