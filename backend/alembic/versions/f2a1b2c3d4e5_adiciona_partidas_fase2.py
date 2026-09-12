@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 import sqlmodel
 
 
@@ -32,10 +33,14 @@ def upgrade() -> None:
     op.add_column('perguntas', sa.Column('explicacao', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
 
     # 3. Criação da tabela partidas
-    statuspartida = sa.Enum('em_andamento', 'encerrada', name='statuspartida')
-    statuspartida.create(op.get_bind(), checkfirst=True)
-
-    modoexecucaoquiz = sa.Enum('individual', 'grupo', name='modoexecucaoquiz')
+    bind = op.get_bind()
+    if bind.dialect.name == 'postgresql':
+        postgresql.ENUM('em_andamento', 'encerrada', name='statuspartida').create(bind, checkfirst=True)
+        statuspartida = postgresql.ENUM('em_andamento', 'encerrada', name='statuspartida', create_type=False)
+        modoexecucaoquiz = postgresql.ENUM('individual', 'grupo', name='modoexecucaoquiz', create_type=False)
+    else:
+        statuspartida = sa.Enum('em_andamento', 'encerrada', name='statuspartida')
+        modoexecucaoquiz = sa.Enum('individual', 'grupo', name='modoexecucaoquiz')
 
     op.create_table(
         'partidas',
@@ -102,6 +107,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_partidas_quiz_id'), table_name='partidas')
     op.drop_index(op.f('ix_partidas_aula_id'), table_name='partidas')
     op.drop_table('partidas')
+    sa.Enum(name='statuspartida').drop(op.get_bind(), checkfirst=True)
 
     op.drop_column('perguntas', 'explicacao')
     op.drop_column('perguntas', 'pontos')
