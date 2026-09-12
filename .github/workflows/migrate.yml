@@ -1,0 +1,36 @@
+name: Migrar banco de produção
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/alembic/**"
+      - "backend/app/models.py"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+  workflow_dispatch: {}
+
+concurrency:
+  group: prod-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Instalar dependências
+        working-directory: backend
+        run: uv sync --frozen --no-dev
+
+      - name: Rodar migrations no banco de produção
+        working-directory: backend
+        env:
+          # Precisa existir em Settings > Secrets and variables > Actions do repo,
+          # com a connection string do Neon de produção (não a de dev do docker-compose).
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: uv run alembic upgrade head
