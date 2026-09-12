@@ -123,6 +123,7 @@ export default function AlunoApp() {
       }
       if (msg.evento === 'aula_encerrada') {
         pararSessaoDeFoco()
+        setAula((prev) => (prev ? { ...prev, status: 'encerrada' } : prev))
       }
     })
 
@@ -191,7 +192,12 @@ export default function AlunoApp() {
 
   return (
     <div style={{ padding: '1rem', maxWidth: 480, margin: '0 auto' }}>
-      {partida ? (
+      {aula.status === 'encerrada' ? (
+        <div className="waiting-card">
+          <h2>Aula encerrada</h2>
+          <p>O professor encerrou a aula. Obrigado pela participação!</p>
+        </div>
+      ) : partida ? (
         <StudentGameView status={partida} onAtualizarStatus={() => carregarPartida(aula.id)} />
       ) : aula.modo_atual === 'livre' ? (
         <div className="waiting-card">
