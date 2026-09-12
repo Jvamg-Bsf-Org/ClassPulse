@@ -33,9 +33,11 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      # .venv mora fora de /app (UV_PROJECT_ENVIRONMENT no Dockerfile), então o bind
-      # mount acima nunca precisa "esconder" nada aqui nem criar pasta no host.
+      # .venv e o build do frontend moram fora de /app (UV_PROJECT_ENVIRONMENT e
+      # FRONTEND_DIST_PATH no Dockerfile), então o bind mount acima nunca precisa
+      # "esconder" nada aqui nem criar pasta dona-do-root no host.
       - classpulse_venv:/opt/venv
+      - classpulse_frontend_dist:/opt/frontend_dist
     depends_on:
       db:
         condition: service_healthy
@@ -43,3 +45,4 @@ services:
 volumes:
   classpulse_pgdata:
   classpulse_venv:
+  classpulse_frontend_dist:

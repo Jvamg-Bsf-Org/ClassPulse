@@ -16,7 +16,8 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
-    UV_PROJECT_ENVIRONMENT=/opt/venv
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    FRONTEND_DIST_PATH=/opt/frontend_dist
 
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
@@ -24,7 +25,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY backend/ .
 RUN uv sync --frozen --no-dev
 
-COPY --from=frontend-build /frontend/dist ./frontend_dist
+COPY --from=frontend-build /frontend/dist /opt/frontend_dist
 
 EXPOSE 8000
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
