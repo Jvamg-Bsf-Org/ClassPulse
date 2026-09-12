@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlmodel import Session
 
 from app.auth import emitir_tokens
 from app.core.cookies import REFRESH_COOKIE_NAME, clear_refresh_cookie
+from app.core.rate_limit import limiter
 from app.core.security import decode_refresh_token
 from app.db import get_session
 from app.models import Aluno, Professor
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/refresh", response_model=Token)
+@limiter.limit("20/minute")
 def refresh(
+    request: Request,
     response: Response,
     session: Session = Depends(get_session),
     refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
