@@ -4,10 +4,19 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
+from app.core.config import settings
 from app.core.security import create_access_token
 from app.db import get_session
 from app.main import app
 from app.models import Aluno, Aula, ModoAula, Participacao, Professor, StatusAula, Turma
+
+
+@pytest.fixture(autouse=True)
+def _cookie_sem_secure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TestClient roda sobre http://testserver, não https — um cookie com
+    Secure nunca voltaria no request seguinte. Em prod isso continua True
+    (via env var), aqui só afeta a suíte de teste."""
+    monkeypatch.setattr(settings, "refresh_cookie_secure", False)
 
 
 @pytest.fixture(name="session")
