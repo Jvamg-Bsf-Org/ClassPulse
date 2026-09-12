@@ -36,7 +36,6 @@ describe("FocusSession — imobilidade", () => {
     const relogio = criarRelogio();
     const s = new FocusSession({ now: relogio.now, janelaImobilidadeMs: 2000, limiarImobilidade: 0.3 });
 
-    // 10 leituras quase idênticas ao longo de 2.2s -> parado
     for (let i = 0; i < 11; i++) {
       s.reportarMotion(9.8 + (i % 2 === 0 ? 0.05 : -0.05));
       relogio.avancar(220);
@@ -50,7 +49,7 @@ describe("FocusSession — imobilidade", () => {
     const s = new FocusSession({ now: relogio.now, janelaImobilidadeMs: 2000, limiarImobilidade: 0.3 });
 
     for (let i = 0; i < 11; i++) {
-      s.reportarMotion(9.8 + (i % 2 === 0 ? 3 : -3)); // oscilação grande = mão mexendo
+      s.reportarMotion(9.8 + (i % 2 === 0 ? 3 : -3));
       relogio.avancar(220);
     }
 
@@ -61,7 +60,6 @@ describe("FocusSession — imobilidade", () => {
     const relogio = criarRelogio();
     const s = new FocusSession({ now: relogio.now, janelaImobilidadeMs: 2000, limiarImobilidade: 0.3 });
 
-    // só 2 leituras juntas, não cobre os 2s da janela ainda
     s.reportarMotion(9.8);
     relogio.avancar(100);
     s.reportarMotion(9.8);
@@ -70,60 +68,87 @@ describe("FocusSession — imobilidade", () => {
   });
 });
 
-describe("FocusSession — contagem de tempo por visibilidade", () => {
-  it("acumula foco enquanto oculto DEPOIS de confirmar proteção", () => {
+describe("FocusSession — janela de reação (visível, sem confirmar)", () => {
+  it("dentro da janela é neutro: não conta nem foco nem distração", () => {
     const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now });
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
 
-    s.reportarOrientacao(180); // confirma proteção, ainda visível
-    s.reportarVisibilidade(false); // esconde -> devia ir pra "focado"
-    relogio.avancar(45_000); // 45s guardado
-    s.reportarVisibilidade(true); // volta
-
-    const r = s.resumo();
-    expect(r.focoSegundos).toBe(45);
-    expect(r.distracaoSegundos).toBe(0);
-  });
-
-  it("acumula distração se esconder SEM confirmar proteção antes", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now });
-
-    s.reportarVisibilidade(false); // sumiu sem virar/parar antes -> "distraido"
-    relogio.avancar(20_000);
-    s.reportarVisibilidade(true);
+    relogio.avancar(15_000); // visível, nunca confirmou, ainda dentro dos 20s
 
     const r = s.resumo();
     expect(r.focoSegundos).toBe(0);
-    expect(r.distracaoSegundos).toBe(20);
+    expect(r.distracaoSegundos).toBe(0);
+    expect(r.estadoAtual).toBe("aguardando");
   });
 
-  it("exige confirmação nova a cada sumida (não carrega proteção antiga)", () => {
+  it("além da janela, ainda visível e sem confirmar, passa a contar como distração", () => {
     const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now });
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
 
-    s.reportarOrientacao(180);
-    s.reportarVisibilidade(false); // focado
-    relogio.avancar(10_000);
-    s.reportarVisibilidade(true); // voltou, reseta a proteção
+    relogio.avancar(35_000); // 35s visível, nunca confirmou
 
-    s.reportarVisibilidade(false); // sumiu de novo SEM confirmar de novo -> distraido
-    relogio.avancar(15_000);
+    const r = s.resumo();
+    expect(r.distracaoSegundos).toBe(15); // só o excedente (35 - 20)
+    expect(r.focoSegundos).toBe(0);
+    expect(r.estadoAtual).toBe("distraido");
+  });
+
+  it("confirmar atrasado (depois de já estourar a janela) para a distração e começa a contar foco dali pra frente", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
+
+    relogio.avancar(30_000); // 30s visível sem confirmar (10s já contando distração)
+    s.reportarOrientacao(180); // confirma atrasado
+    relogio.avancar(10_000); // continua visível, agora protegido
+    s.reportarVisibilidade(false); // esconde
+    relogio.avancar(5_000);
     s.reportarVisibilidade(true);
 
     const r = s.resumo();
-    expect(r.focoSegundos).toBe(10);
-    expect(r.distracaoSegundos).toBe(15);
+    expect(r.distracaoSegundos).toBe(10); // só os 10s entre estourar a janela e confirmar
+    expect(r.focoSegundos).toBe(15); // 10s visível-protegido + 5s escondido
+  });
+});
+
+describe("FocusSession — confirmar antes de esconder (caminho ideal)", () => {
+  it("confirma dentro da janela, fica visível-protegido um tempo, depois esconde: 100% foco", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
+
+    s.reportarOrientacao(180); // confirma quase imediatamente
+    relogio.avancar(5_000); // ainda visível, mas já protegido -> conta foco também
+    s.reportarVisibilidade(false); // esconde
+    relogio.avancar(30_000);
+    s.reportarVisibilidade(true);
+
+    const r = s.resumo();
+    expect(r.focoSegundos).toBe(35); // 5s visível-protegido + 30s escondido
+    expect(r.distracaoSegundos).toBe(0);
+  });
+});
+
+describe("FocusSession — esconder sem nunca confirmar", () => {
+  it("distração desde o segundo 0, sem perdão nenhum, não importa quanto tempo fique escondido", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
+
+    s.reportarVisibilidade(false); // fechou a aba sem ter confirmado nada
+    relogio.avancar(90_000); // ficou escondido bastante tempo, nunca voltou pra confirmar
+    s.reportarVisibilidade(true);
+
+    const r = s.resumo();
+    expect(r.distracaoSegundos).toBe(90);
+    expect(r.focoSegundos).toBe(0);
   });
 
-  it("flip-flop rápido de quem fica checando o Instagram conta quase tudo como distração", () => {
+  it("flip-flop rápido: cada sumida conta 100% distração, intervalos visíveis curtos ficam neutros", () => {
     const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now });
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
 
     for (let i = 0; i < 5; i++) {
-      s.reportarVisibilidade(false); // nunca confirmou proteção -> distraido
+      s.reportarVisibilidade(false); // nunca confirma -> distração cheia
       relogio.avancar(3_000);
-      s.reportarVisibilidade(true);
+      s.reportarVisibilidade(true); // volta rápido, dentro da janela de reação -> neutro
       relogio.avancar(1_000);
     }
 
@@ -131,64 +156,48 @@ describe("FocusSession — contagem de tempo por visibilidade", () => {
     expect(r.distracaoSegundos).toBe(15);
     expect(r.focoSegundos).toBe(0);
   });
+
+  it("exige confirmação nova a cada sumida — não carrega proteção antiga", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000 });
+
+    s.reportarOrientacao(180);
+    s.reportarVisibilidade(false); // focado
+    relogio.avancar(10_000);
+    s.reportarVisibilidade(true); // volta, reseta a proteção
+
+    s.reportarVisibilidade(false); // sumiu de novo SEM confirmar de novo -> distração cheia
+    relogio.avancar(15_000);
+    s.reportarVisibilidade(true);
+
+    const r = s.resumo();
+    expect(r.focoSegundos).toBe(10);
+    expect(r.distracaoSegundos).toBe(15);
+  });
 });
 
-describe("FocusSession — benefício da dúvida (virou o celular depois de já estar escondido)", () => {
-  it("some sem confirmar e some por pouco tempo -> conta tudo como distração (nada muda)", () => {
+describe("FocusSession — sensoresDisponiveis: false (permissão negada ou sem suporte)", () => {
+  it("esconder sem confirmar conta como foco direto, já que não dá pra exigir prova que não existe", () => {
     const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaConfirmacaoTardiaMs: 20_000 });
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000, sensoresDisponiveis: false });
 
-    s.reportarVisibilidade(false); // saiu sem ter virado/parado o celular ainda
-    relogio.avancar(8_000); // só 8s, abaixo da janela de tolerância de 20s
+    s.reportarVisibilidade(false); // nunca teve como confirmar
+    relogio.avancar(40_000);
     s.reportarVisibilidade(true);
 
     const r = s.resumo();
-    expect(r.distracaoSegundos).toBe(8);
-    expect(r.focoSegundos).toBe(0);
-  });
-
-  it("some sem confirmar mas fica escondido MUITO além da janela -> excedente vira foco", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaConfirmacaoTardiaMs: 20_000 });
-
-    s.reportarVisibilidade(false); // saiu rápido, sem confirmar (ex: foi virar o celular só depois)
-    relogio.avancar(20_000 + 40_000); // ficou escondido bem mais que a janela, nunca mais voltou pra checar
-    s.reportarVisibilidade(true); // só volta no fim da aula
-
-    const r = s.resumo();
-    expect(r.distracaoSegundos).toBe(20); // só os primeiros 20s (a janela) contam contra ele
-    expect(r.focoSegundos).toBe(40); // o resto ganha o benefício da dúvida
-  });
-
-  it("o benefício da dúvida aparece em tempo real, mesmo sem ele ter voltado ainda (poll do backend)", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaConfirmacaoTardiaMs: 20_000 });
-
-    s.reportarVisibilidade(false);
-    relogio.avancar(25_000); // ainda escondido, ninguém chamou reportarVisibilidade(true)
-
-    const parcial = s.resumo(); // simula um poll periódico batendo enquanto ele ainda tá "sumido"
-    expect(parcial.distracaoSegundos).toBe(20);
-    expect(parcial.focoSegundos).toBe(5);
-    expect(parcial.estadoAtual).toBe("distraido");
-
-    relogio.avancar(10_000); // continua escondido mais um pouco
-    const final = s.resumo();
-    expect(final.distracaoSegundos).toBe(20); // não cresce mais, já passou da janela
-    expect(final.focoSegundos).toBe(15);
-  });
-
-  it("virar o celular ANTES de esconder continua sendo o caminho ideal: 100% foco, sem janela nenhuma", () => {
-    const relogio = criarRelogio();
-    const s = new FocusSession({ now: relogio.now, janelaConfirmacaoTardiaMs: 20_000 });
-
-    s.reportarOrientacao(180); // confirma antes de sumir
-    s.reportarVisibilidade(false);
-    relogio.avancar(3_000); // nem precisa esperar janela nenhuma, já é foco desde o segundo 0
-    s.reportarVisibilidade(true);
-
-    const r = s.resumo();
-    expect(r.focoSegundos).toBe(3);
+    expect(r.focoSegundos).toBe(40);
     expect(r.distracaoSegundos).toBe(0);
+  });
+
+  it("mas ficar visível segurando o celular além da janela AINDA conta como distração (não depende de sensor)", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaReacaoMs: 20_000, sensoresDisponiveis: false });
+
+    relogio.avancar(30_000); // visível o tempo todo, nunca escondeu
+
+    const r = s.resumo();
+    expect(r.distracaoSegundos).toBe(10);
+    expect(r.focoSegundos).toBe(0);
   });
 });
