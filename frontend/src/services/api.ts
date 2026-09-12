@@ -134,6 +134,10 @@ export async function entrarAula(codigo_aula: string): Promise<Aula> {
   return request<Aula>('/aulas/entrar', { method: 'POST', body: JSON.stringify({ codigo_aula }) })
 }
 
+export async function listarAulasDaTurma(turmaId: number): Promise<Aula[]> {
+  return request<Aula[]>(`/aulas/turma/${turmaId}`)
+}
+
 export async function obterAula(aulaId: number): Promise<Aula> {
   return request<Aula>(`/aulas/${aulaId}`)
 }
@@ -221,6 +225,10 @@ export async function pularPartida(partidaId: number): Promise<{ mensagem: strin
 
 export async function obterStatusProfessor(partidaId: number): Promise<PartidaProfessorStatus> {
   return request<PartidaProfessorStatus>(`/partidas/${partidaId}/professor-status`)
+}
+
+export async function obterPartidaAtiva(aulaId: number): Promise<PartidaProfessorStatus | null> {
+  return request<PartidaProfessorStatus | null>(`/partidas/aula/${aulaId}/ativa`)
 }
 
 export async function encerrarPartida(partidaId: number): Promise<PartidaResultado> {

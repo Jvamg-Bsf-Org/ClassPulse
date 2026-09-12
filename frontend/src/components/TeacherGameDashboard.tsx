@@ -216,8 +216,9 @@ export default function TeacherGameDashboard({
           ) : (
             <form onSubmit={handleDisparar} className="launch-form">
               <div className="form-group">
-                <label>Selecione o Quiz para esta rodada:</label>
+                <label htmlFor="dash-quiz">Selecione o Quiz para esta rodada:</label>
                 <select
+                  id="dash-quiz"
                   value={selectedQuizId || ''}
                   onChange={(e) => setSelectedQuizId(Number(e.target.value))}
                   required
@@ -232,8 +233,9 @@ export default function TeacherGameDashboard({
 
               <div className="toggles-grid">
                 <div className="toggle-box">
-                  <label>Agrupamento:</label>
+                  <label htmlFor="dash-agrupamento">Agrupamento:</label>
                   <select
+                    id="dash-agrupamento"
                     value={modoExecucao}
                     onChange={(e) => setModoExecucao(e.target.value as ModoExecucaoQuiz)}
                   >
@@ -243,8 +245,9 @@ export default function TeacherGameDashboard({
                 </div>
 
                 <div className="toggle-box">
-                  <label>Dinâmica:</label>
+                  <label htmlFor="dash-dinamica">Dinâmica:</label>
                   <select
+                    id="dash-dinamica"
                     value={competitivo ? 'comp' : 'coop'}
                     onChange={(e) => setCompetitivo(e.target.value === 'comp')}
                   >
@@ -255,8 +258,9 @@ export default function TeacherGameDashboard({
 
                 {!competitivo && (
                   <div className="toggle-box">
-                    <label>Meta de Acertos da Turma:</label>
+                    <label htmlFor="dash-meta">Meta de Acertos da Turma:</label>
                     <input
+                      id="dash-meta"
                       type="number"
                       min="20"
                       max="100"
@@ -267,8 +271,9 @@ export default function TeacherGameDashboard({
                 )}
 
                 <div className="toggle-box">
-                  <label>Caráter da Atividade:</label>
+                  <label htmlFor="dash-carater">Caráter da Atividade:</label>
                   <select
+                    id="dash-carater"
                     value={obrigatorio ? 'obrig' : 'opc'}
                     onChange={(e) => setObrigatorio(e.target.value === 'obrig')}
                   >
@@ -278,8 +283,9 @@ export default function TeacherGameDashboard({
                 </div>
 
                 <div className="toggle-box">
-                  <label>Tempo Limite (minutos):</label>
+                  <label htmlFor="dash-tempo">Tempo Limite (minutos):</label>
                   <input
+                    id="dash-tempo"
                     type="number"
                     min="1"
                     max="60"

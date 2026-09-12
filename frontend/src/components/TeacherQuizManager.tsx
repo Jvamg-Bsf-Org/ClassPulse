@@ -173,8 +173,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
           <h3>Cadastrar Novo Quiz</h3>
 
           <div className="form-group">
-            <label>Título do Quiz *</label>
+            <label htmlFor="quiz-titulo">Título do Quiz *</label>
             <input
+              id="quiz-titulo"
               type="text"
               placeholder="Ex: Fixação - Leis de Newton"
               value={titulo}
@@ -184,8 +185,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
           </div>
 
           <div className="form-group">
-            <label>Descrição pedagógica (opcional)</label>
+            <label htmlFor="quiz-descricao">Descrição pedagógica (opcional)</label>
             <textarea
+              id="quiz-descricao"
               placeholder="Ex: Exercícios rápidos pós-explicação teórica de inércia e força."
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
@@ -195,8 +197,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
 
           <div className="toggles-grid">
             <div className="toggle-box">
-              <label>Formato Padrão:</label>
+              <label htmlFor="quiz-formato">Formato Padrão:</label>
               <select
+                id="quiz-formato"
                 value={modoExecucao}
                 onChange={(e) => setModoExecucao(e.target.value as ModoExecucaoQuiz)}
               >
@@ -206,8 +209,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
             </div>
 
             <div className="toggle-box">
-              <label>Estilo do Jogo:</label>
+              <label htmlFor="quiz-estilo">Estilo do Jogo:</label>
               <select
+                id="quiz-estilo"
                 value={competitivo ? 'comp' : 'coop'}
                 onChange={(e) => setCompetitivo(e.target.value === 'comp')}
               >
@@ -218,8 +222,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
 
             {!competitivo && (
               <div className="toggle-box">
-                <label>Meta Coletiva (% acertos):</label>
+                <label htmlFor="quiz-meta">Meta Coletiva (% acertos):</label>
                 <input
+                  id="quiz-meta"
                   type="number"
                   min="10"
                   max="100"
@@ -230,8 +235,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
             )}
 
             <div className="toggle-box">
-              <label>Participação:</label>
+              <label htmlFor="quiz-participacao">Participação:</label>
               <select
+                id="quiz-participacao"
                 value={obrigatorio ? 'obrig' : 'opc'}
                 onChange={(e) => setObrigatorio(e.target.value === 'obrig')}
               >
@@ -261,8 +267,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
                 </div>
 
                 <div className="form-group">
-                  <label>Enunciado da Questão *</label>
+                  <label htmlFor={`enunciado-${qIdx}`}>Enunciado da Questão *</label>
                   <input
+                    id={`enunciado-${qIdx}`}
                     type="text"
                     placeholder="Digite a pergunta para a turma..."
                     value={p.enunciado}
@@ -276,8 +283,9 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
                 </div>
 
                 <div className="form-group">
-                  <label>Explicação Pedagógica (revelada após o encerramento da atividade)</label>
+                  <label htmlFor={`explicacao-${qIdx}`}>Explicação Pedagógica (revelada após o encerramento da atividade)</label>
                   <input
+                    id={`explicacao-${qIdx}`}
                     type="text"
                     placeholder="Ex: Lembrar que a força resultante é o produto da massa pela aceleração..."
                     value={p.explicacao || ''}

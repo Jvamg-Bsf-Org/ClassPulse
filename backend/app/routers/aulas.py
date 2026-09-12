@@ -32,6 +32,18 @@ def _aula_do_professor(session: Session, aula_id: int, professor: Professor) -> 
     return aula
 
 
+@router.get("/turma/{turma_id}", response_model=list[AulaRead])
+def listar_aulas_da_turma(
+    turma_id: int,
+    professor: Professor = Depends(get_current_professor),
+    session: Session = Depends(get_session),
+) -> list[Aula]:
+    _turma_do_professor(session, turma_id, professor)
+    return list(
+        session.exec(select(Aula).where(Aula.turma_id == turma_id).order_by(Aula.created_at.desc()))
+    )
+
+
 @router.post("", response_model=AulaRead, status_code=status.HTTP_201_CREATED)
 def criar_aula(
     dados: AulaCreate,

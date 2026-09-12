@@ -11,6 +11,7 @@ export default defineConfig({
       '/professores': 'http://localhost:8000',
       '/alunos': 'http://localhost:8000',
       '/turmas': 'http://localhost:8000',
+      '/aulas': 'http://localhost:8000',
       '/quizzes': 'http://localhost:8000',
       '/partidas': 'http://localhost:8000',
       '/health': 'http://localhost:8000',

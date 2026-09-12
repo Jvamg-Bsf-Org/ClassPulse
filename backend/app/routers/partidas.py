@@ -161,6 +161,33 @@ async def iniciar_partida(
     return await obter_status_professor(partida.id, professor, session)
 
 
+@router.get("/aula/{aula_id}/ativa", response_model=PartidaProfessorStatusRead | None)
+async def obter_partida_ativa(
+    aula_id: int,
+    professor: Professor = Depends(get_current_professor),
+    session: Session = Depends(get_session),
+) -> PartidaProfessorStatusRead | None:
+    """Recupera a partida em andamento da aula, se houver — usado pra restaurar o
+    painel do professor depois de um F5 no meio de uma atividade."""
+    aula = session.get(Aula, aula_id)
+    if not aula:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Aula não encontrada")
+
+    turma = session.get(Turma, aula.turma_id)
+    if not turma or turma.professor_id != professor.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Não autorizado para esta aula")
+
+    partida = session.exec(
+        select(Partida)
+        .where(Partida.aula_id == aula_id, Partida.status == StatusPartida.em_andamento)
+        .order_by(Partida.id.desc())
+    ).first()
+    if not partida:
+        return None
+
+    return await obter_status_professor(partida.id, professor, session)
+
+
 @router.get("/aula/{aula_id}/aluno-status", response_model=PartidaAlunoStatusRead)
 def obter_status_aluno(
     aula_id: int,
