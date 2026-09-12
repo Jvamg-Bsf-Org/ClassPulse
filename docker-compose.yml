@@ -17,23 +17,29 @@ services:
       retries: 10
 
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     # roda a migration a cada start (idempotente) e sobe com --reload pra dev
     command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       DATABASE_URL: postgresql+psycopg2://classpulse:classpulse@db:5432/classpulse
-      JWT_SECRET: dev-secret-so-para-uso-local-nao-usar-em-prod
-      # False aqui pq em dev local é http puro (sem HTTPS); em prod deixa True (default)
-      REFRESH_COOKIE_SECURE: "false"
+      JWT_SECRET: LbMvHu-InH4eNRWxeTP8d7U3D5zqyASJS_3PO7F0jBM
+      # navegadores modernos tratam localhost como contexto seguro, entao cookie Secure
+      # funciona normalmente mesmo em http://localhost — deixa igual a prod
+      REFRESH_COOKIE_SECURE: "true"
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - /app/.venv # evita que o .venv do host (se existir) sobreponha o do container
+      # .venv mora fora de /app (UV_PROJECT_ENVIRONMENT no Dockerfile), então o bind
+      # mount acima nunca precisa "esconder" nada aqui nem criar pasta no host.
+      - classpulse_venv:/opt/venv
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   classpulse_pgdata:
+  classpulse_venv:
