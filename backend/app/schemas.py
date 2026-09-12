@@ -55,6 +55,39 @@ class TurmaEntrarRequest(BaseModel):
 
 
 # ==========================================
+# Aulas + Modo Foco
+# ==========================================
+from app.models import ModoAula, StatusAula
+
+
+class AulaCreate(BaseModel):
+    turma_id: int
+    titulo: str
+
+
+class AulaRead(BaseModel):
+    id: int
+    turma_id: int
+    titulo: str
+    codigo_aula: str
+    modo_atual: ModoAula
+    status: StatusAula
+    created_at: datetime
+
+
+class AulaEntrarRequest(BaseModel):
+    codigo_aula: str
+
+
+class AulaModoRequest(BaseModel):
+    modo: ModoAula
+
+
+class FocoScoreRequest(BaseModel):
+    foco_segundos: int
+
+
+# ==========================================
 # Fase 2: Schemas para Quizzes e Jogos
 # ==========================================
 from app.models import ModoExecucaoQuiz, StatusPartida, TipoPergunta

@@ -61,6 +61,98 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json()
 }
 
+// Auth
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  tipo: 'professor' | 'aluno'
+}
+
+export async function loginProfessor(email: string, senha: string): Promise<TokenResponse> {
+  return request<TokenResponse>('/professores/login', { method: 'POST', body: JSON.stringify({ email, senha }) })
+}
+
+export async function cadastrarProfessor(nome: string, email: string, senha: string): Promise<TokenResponse> {
+  return request<TokenResponse>('/professores/cadastro', {
+    method: 'POST',
+    body: JSON.stringify({ nome, email, senha }),
+  })
+}
+
+export async function loginAluno(email: string, senha: string): Promise<TokenResponse> {
+  return request<TokenResponse>('/alunos/login', { method: 'POST', body: JSON.stringify({ email, senha }) })
+}
+
+export async function cadastrarAluno(nome: string, email: string, senha: string): Promise<TokenResponse> {
+  return request<TokenResponse>('/alunos/cadastro', {
+    method: 'POST',
+    body: JSON.stringify({ nome, email, senha }),
+  })
+}
+
+// Turmas
+export interface Turma {
+  id: number
+  nome: string
+  codigo_turma: string
+  professor_id: number
+  created_at: string
+}
+
+export async function criarTurma(nome: string): Promise<Turma> {
+  return request<Turma>('/turmas', { method: 'POST', body: JSON.stringify({ nome }) })
+}
+
+export async function entrarTurma(codigo_turma: string): Promise<Turma> {
+  return request<Turma>('/turmas/entrar', { method: 'POST', body: JSON.stringify({ codigo_turma }) })
+}
+
+export async function minhasTurmas(): Promise<Turma[]> {
+  return request<Turma[]>('/turmas/minhas')
+}
+
+export async function turmasMatriculadas(): Promise<Turma[]> {
+  return request<Turma[]>('/turmas/matriculadas')
+}
+
+// Aulas
+export interface Aula {
+  id: number
+  turma_id: number
+  titulo: string
+  codigo_aula: string
+  modo_atual: 'livre' | 'foco' | 'atividade'
+  status: 'nao_iniciada' | 'em_andamento' | 'encerrada'
+  created_at: string
+}
+
+export async function criarAula(turma_id: number, titulo: string): Promise<Aula> {
+  return request<Aula>('/aulas', { method: 'POST', body: JSON.stringify({ turma_id, titulo }) })
+}
+
+export async function entrarAula(codigo_aula: string): Promise<Aula> {
+  return request<Aula>('/aulas/entrar', { method: 'POST', body: JSON.stringify({ codigo_aula }) })
+}
+
+export async function obterAula(aulaId: number): Promise<Aula> {
+  return request<Aula>(`/aulas/${aulaId}`)
+}
+
+export async function mudarModoAula(aulaId: number, modo: Aula['modo_atual']): Promise<Aula> {
+  return request<Aula>(`/aulas/${aulaId}/modo`, { method: 'POST', body: JSON.stringify({ modo }) })
+}
+
+export async function encerrarAula(aulaId: number): Promise<Aula> {
+  return request<Aula>(`/aulas/${aulaId}/encerrar`, { method: 'POST' })
+}
+
+export async function reportarFoco(aulaId: number, focoSegundos: number): Promise<void> {
+  return request<void>(`/aulas/${aulaId}/foco`, {
+    method: 'POST',
+    body: JSON.stringify({ foco_segundos: focoSegundos }),
+  })
+}
+
 // Quizzes (Professor)
 export async function listarQuizzes(): Promise<QuizResumo[]> {
   return request<QuizResumo[]>('/quizzes/meus')

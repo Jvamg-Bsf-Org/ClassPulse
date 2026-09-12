@@ -4,7 +4,7 @@
  * — depende de acelerômetro/giroscópio de verdade, e só dá pra validar num
  * celular físico.
  */
-import { FocusSession, type FocusSessionEvents } from "./focusSession";
+import { FocusSession, type FocusSessionOptions } from "./focusSession";
 
 interface EventoComPermissaoIOS {
   requestPermission: () => Promise<"granted" | "denied">;
@@ -47,8 +47,8 @@ export interface SessaoAtiva {
 }
 
 /** Liga a FocusSession aos eventos reais do navegador. Chamar depois de `solicitarPermissaoSensores`. */
-export function iniciarSessaoDeFoco(eventos: FocusSessionEvents = {}): SessaoAtiva {
-  const sessao = new FocusSession(eventos);
+export function iniciarSessaoDeFoco(opcoes: FocusSessionOptions = {}): SessaoAtiva {
+  const sessao = new FocusSession(opcoes);
 
   const aoOrientar = (e: DeviceOrientationEvent) => {
     if (e.beta !== null) sessao.reportarOrientacao(e.beta);

@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import FocoTester from './components/FocoTester'
 import StudentGameView from './components/StudentGameView'
 import TeacherGameDashboard from './components/TeacherGameDashboard'
 import TeacherQuizManager from './components/TeacherQuizManager'
 import type { PartidaAlunoStatus } from './types/game'
 
 
-type ViewMode = 'aluno' | 'professor_painel' | 'professor_quizzes'
+type ViewMode = 'aluno' | 'professor_painel' | 'professor_quizzes' | 'foco_tester'
 
 // Exemplo interativo de dados para teste e demonstração imediata
 const DEMO_STATUS_GRUPO: PartidaAlunoStatus = {
@@ -89,6 +90,12 @@ export default function App() {
           >
             📚 Banco de Quizzes
           </button>
+          <button
+            className={`nav-tab-btn ${view === 'foco_tester' ? 'active' : ''}`}
+            onClick={() => setView('foco_tester')}
+          >
+            🎯 Testar Modo Foco
+          </button>
         </nav>
       </header>
 
@@ -127,6 +134,8 @@ export default function App() {
             }}
           />
         )}
+
+        {view === 'foco_tester' && <FocoTester />}
       </main>
     </div>
   )

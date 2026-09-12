@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.ws_manager import manager
-from app.routers import alunos, auth, partidas, professores, quizzes, turmas
+from app.routers import alunos, aulas, auth, partidas, professores, quizzes, turmas
 
 app = FastAPI(title="ClassPulse API")
 
@@ -22,6 +22,7 @@ app.include_router(auth.router)
 app.include_router(professores.router)
 app.include_router(alunos.router)
 app.include_router(turmas.router)
+app.include_router(aulas.router)
 app.include_router(quizzes.router)
 app.include_router(partidas.router)
 
