@@ -128,6 +128,11 @@ const DEFAULTS = {
   // parado (mesmo com tremor de mão) fica na casa de poucos graus/segundo.
   velocidadeAngularManuseio: 25,
   limiarMovimentoSignificativo: 2.0,
+  // Intervalo mínimo (ms) entre duas leituras de orientação pra calcular
+  // velocidade angular com confiança -- evita que jitter de poucos ms entre
+  // eventos (comum em sensor real) infle um ruído pequeno numa "velocidade"
+  // gigante e falsa (3° em 4ms já dá 750°/s, bem acima do limiar de manuseio).
+  intervaloMinimoVelocidadeMs: 30,
 } as const;
 
 /** Menor distância angular entre dois ângulos em graus (-180..180), tratando o wraparound. */
@@ -181,14 +186,25 @@ export class FocusSession {
     const janela = this.opts.janelaConfirmacaoMs ?? DEFAULTS.janelaConfirmacaoMs;
     const limiarVelocidade = this.opts.velocidadeAngularManuseio ?? DEFAULTS.velocidadeAngularManuseio;
 
-    if (this.betaAnterior !== null && this.tOrientacaoAnterior !== null) {
-      const deltaAngular = diferencaAngular(betaGraus, this.betaAnterior);
-      const deltaTempoS = Math.max((agora - this.tOrientacaoAnterior) / 1000, 0.001);
-      const velocidadeAngular = deltaAngular / deltaTempoS;
-      if (velocidadeAngular > limiarVelocidade) this.registrarManuseio(agora);
+    if (this.betaAnterior === null || this.tOrientacaoAnterior === null) {
+      this.betaAnterior = betaGraus;
+      this.tOrientacaoAnterior = agora;
+    } else {
+      const deltaTempoMs = agora - this.tOrientacaoAnterior;
+      // Dois eventos podem chegar a poucos ms um do outro (jitter normal de
+      // sensor real) -- dividir por um intervalo minúsculo transforma até um
+      // pouquinho de ruído numa "velocidade" gigante e falsa. Só mede (e só
+      // avança a referência) quando já passou tempo suficiente pra a conta
+      // fazer sentido; enquanto isso, o ângulo intermediário fica acumulado
+      // implicitamente porque a referência antiga continua valendo.
+      if (deltaTempoMs >= DEFAULTS.intervaloMinimoVelocidadeMs) {
+        const deltaAngular = diferencaAngular(betaGraus, this.betaAnterior);
+        const velocidadeAngular = deltaAngular / (deltaTempoMs / 1000);
+        if (velocidadeAngular > limiarVelocidade) this.registrarManuseio(agora);
+        this.betaAnterior = betaGraus;
+        this.tOrientacaoAnterior = agora;
+      }
     }
-    this.betaAnterior = betaGraus;
-    this.tOrientacaoAnterior = agora;
 
     const deCaraPraBaixo = Math.abs(Math.abs(betaGraus) - 180) <= tolerancia;
     if (!deCaraPraBaixo) {

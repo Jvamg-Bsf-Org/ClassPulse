@@ -150,6 +150,24 @@ describe("FocusSession — manuseio detectado por ROTAÇÃO (o problema relatado
     expect(s.resumo().estadoAtual).toBe("protegido_visivel");
   });
 
+  it("dois eventos chegando quase juntos (jitter de sensor real) não inflam ruído pequeno numa 'velocidade' falsa", () => {
+    // 3° em 4ms daria 750°/s no cálculo ingênuo (bem acima do limiar de 25) --
+    // mas é só jitter de sensor, não manuseio. Precisa de tempo suficiente
+    // entre leituras pra a conta de velocidade valer.
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, janelaConfirmacaoMs: 1000, velocidadeAngularManuseio: 25 });
+
+    s.reportarOrientacao(178);
+    relogio.avancar(1000);
+    s.reportarOrientacao(178);
+    expect(s.resumo().estadoAtual).toBe("protegido_visivel");
+
+    relogio.avancar(4);
+    s.reportarOrientacao(175); // 3° em 4ms -- ruído, não manuseio
+
+    expect(s.resumo().estadoAtual).toBe("protegido_visivel");
+  });
+
   it("depois de revogado por manuseio, reconfirma rápido se realmente ficar parado nos segundos seguintes (custo baixo do falso positivo)", () => {
     const relogio = criarRelogio();
     const s = new FocusSession({ now: relogio.now, janelaConfirmacaoMs: 1000, janelaReacaoMs: 20_000 });
