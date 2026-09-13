@@ -7,11 +7,45 @@
  * que permite testar a classificação sem precisar de um celular de verdade;
  * quem liga isso a sensores reais é o adaptador em sensors.ts.
  *
+ * ==========================================================================
+ * O QUE MUDOU NESTA REFORMULAÇÃO (v2) E POR QUÊ
+ * ==========================================================================
+ *
+ * A versão anterior detectava "manuseio" (celular sendo mexido) quase só
+ * olhando a MAGNITUDE de `accelerationIncludingGravity`. Isso é uma falha de
+ * design, não só um número mal calibrado: o vetor gravidade tem módulo
+ * constante (~9.8 m/s²) INDEPENDENTE da direção. Girar o celular devagar pra
+ * checar a tela -- o jeito mais comum de "distração rápida" -- muda a
+ * DIREÇÃO do vetor, não o módulo, e por isso quase não aparecia na magnitude.
+ * Resultado prático relatado: o sensor "parece pouco sensível".
+ *
+ * A correção: o sinal PRINCIPAL de manuseio agora é a VELOCIDADE ANGULAR
+ * (graus/segundo) calculada a partir do próprio ângulo de orientação (beta)
+ * -- pegar o celular pra olhar muda o ângulo relatado rapidamente e sem
+ * ambiguidade, é uma rotação real, não uma leitura de aceleração que pode ou
+ * não refletir isso. A magnitude de aceleração vira sinal SECUNDÁRIO, útil
+ * só pra pegar o caso raro de movimento translacional sem rotação (arrastar
+ * o celular na mesa mantendo o mesmo ângulo).
+ *
+ * Segunda mudança: confirmar proteção deixou de ser instantâneo (um único
+ * ângulo de bruços já bastava antes). Agora exige ficar ESTÁVEL de bruços
+ * por `janelaConfirmacaoMs` -- filtra um giro de pulso acidental que passa
+ * por perto de 180° sem a pessoa ter realmente guardado o celular.
+ *
+ * Terceira mudança: revogação deixou de exigir várias leituras "grandes"
+ * seguidas (aquilo tinha um furo -- um ÚNICO pico de ruído sempre gera 2
+ * deltas grandes, então "exigir 2" não filtrava nada). Agora qualquer
+ * evidência de manuseio revoga na hora. Um falso positivo por ruído custa
+ * pouco: a sessão só volta pra "aguardando" e reconfirma no próximo segundo
+ * se a pessoa realmente não tinha mexido em nada -- e por estar dentro da
+ * janela de reação, nem chega a contar como distração.
+ *
  * Duas formas independentes de confirmar "protegido" (qualquer uma vale):
- *   - orientação: celular virado de cara pra baixo (ângulo beta perto de ±180°)
- *   - imobilidade: celular parado (sem variação de aceleração) por um tempo,
- *     não importa a orientação — cobre quem só deixa o celular quieto na mesa
- *     sem virar, ou guardado na bolsa/bolso.
+ *   - orientação: celular ESTÁVEL de cara pra baixo (ângulo beta perto de
+ *     ±180°) por pelo menos `janelaConfirmacaoMs`.
+ *   - imobilidade: celular parado (sem variação de aceleração NEM de ângulo)
+ *     por `janelaImobilidadeMs` -- não importa a orientação, cobre quem só
+ *     deixa o celular quieto na mesa sem virar, ou guardado na bolsa/bolso.
  *
  * O que decide foco vs distração não é "visível ou escondido" — é "confirmou
  * proteção ou não":
@@ -20,28 +54,11 @@
  *   - visível, ALÉM da janela de reação e ainda sem confirmar: distração — tá
  *     com o celular aceso na mão, isso não depende de sensor nenhum.
  *   - confirmou (a qualquer momento, mesmo atrasado): foco a partir daí, visível
- *     ou escondido — não importa mais... a não ser que pegue o celular e mexa
- *     de verdade depois (ver "revogação" abaixo).
+ *     ou escondido — não importa mais... a não ser que detecte manuseio de
+ *     verdade depois (ver revogação acima).
  *   - escondeu (fechou a aba/trocou de app) SEM nunca ter confirmado: distração,
  *     sem perdão, desde o segundo 0 — ele não provou que guardou.
  *   - toda volta pra tela reseta tudo: a próxima sumida exige confirmação nova.
- *
- * Revogação da proteção (enquanto ainda visível): confirmar não é permanente
- * pra sempre — se depois de confirmado o sensor de movimento detectar que o
- * celular voltou a ser manuseado de verdade (variação de aceleração bem acima
- * de `limiarMovimentoSignificativo`, por `amostrasMovimentoParaRevogar`
- * leituras seguidas), a proteção é revogada e volta pro estado "aguardando"
- * (uma nova janela de reação começa, exigindo confirmação nova). Sem isso, um
- * único blip de orientação (ex: girar o pulso por acaso) travava "protegido"
- * pro resto da sessão visível, mesmo que o aluno ficasse os minutos seguintes
- * usando o celular ativamente antes de finalmente bloquear a tela.
- *
- * O limiar de revogação é bem mais alto que `limiarImobilidade` (não o
- * mesmo!): entre os dois existe uma zona morta de propósito. Se fosse o
- * mesmo valor, qualquer tremor de mão que já falha o teste de "parado"
- * (limiar baixo, fácil de furar) ia ficar revogando e reconfirmando toda
- * hora. Só ruído/solavanco pequeno não desfaz uma proteção válida; só
- * manuseio claro e sustentado desfaz.
  *
  * Sem sensor confirmado não tem "modo generoso" aqui -- essa decisão é tomada
  * antes, no gate de entrada da aula (ver AlunoApp): sem sensor, o aluno nem
@@ -60,21 +77,32 @@ export interface FocusSessionOptions extends FocusSessionEvents {
   now?: () => number;
   /** Tolerância (graus) ao redor de ±180° pra considerar "de cara pra baixo". */
   toleranciaFaceDownGraus?: number;
-  /** Janela de tempo (ms) observada pra considerar o celular "parado". */
+  /** Janela de tempo (ms) observada pra considerar o celular "parado" (via aceleração). */
   janelaImobilidadeMs?: number;
   /** Variação máxima de aceleração (m/s², entre amostras) tolerada como "parado". */
   limiarImobilidade?: number;
   /** Tempo de reação (ms) visível-sem-confirmar antes de começar a contar como distração. */
   janelaReacaoMs?: number;
   /**
-   * Variação de aceleração (m/s², entre amostras) que já indica manuseio de
-   * verdade -- usada só pra REVOGAR uma proteção já confirmada, não pra
-   * confirmar. Bem mais alto que `limiarImobilidade` de propósito (ver
-   * comentário no topo do arquivo sobre a zona morta entre os dois).
+   * Quanto tempo (ms) o celular precisa ficar CONTINUAMENTE de bruços antes
+   * de confirmar proteção por orientação -- e também o tempo mínimo desde o
+   * último manuseio detectado antes de aceitar uma confirmação nova (por
+   * orientação OU imobilidade). Filtra um giro acidental que passa perto de
+   * 180° sem ser de propósito.
+   */
+  janelaConfirmacaoMs?: number;
+  /**
+   * Velocidade angular (graus/segundo, calculada a partir do beta) que já
+   * indica manuseio de verdade. É o sinal PRINCIPAL de manuseio -- ver
+   * explicação no topo do arquivo sobre por que aceleração sozinha é cega
+   * pra rotação lenta.
+   */
+  velocidadeAngularManuseio?: number;
+  /**
+   * Variação de aceleração (m/s², entre amostras) que também indica manuseio
+   * -- sinal SECUNDÁRIO, pega movimento translacional sem rotação.
    */
   limiarMovimentoSignificativo?: number;
-  /** Quantas leituras seguidas acima de `limiarMovimentoSignificativo` são exigidas antes de revogar (filtra um pico isolado de ruído/solavanco). */
-  amostrasMovimentoParaRevogar?: number;
 }
 
 export type EstadoFocoSessao =
@@ -95,15 +123,18 @@ const DEFAULTS = {
   janelaImobilidadeMs: 2500,
   limiarImobilidade: 0.5,
   janelaReacaoMs: 20_000,
-  // 6x o limiar de imobilidade -- ver a zona morta explicada no topo do arquivo.
-  limiarMovimentoSignificativo: 3.0,
-  // 3, não 2: um ÚNICO pico isolado (ruído/solavanco) sempre gera exatamente
-  // 2 deltas grandes seguidos (a subida até o pico e a descida de volta ao
-  // normal) -- com 2 já revogaria por causa de UMA leitura ruim. 3 exige que
-  // o "manuseio" continue além disso, o que só acontece com movimento de
-  // verdade (o sensor dispara várias leituras enquanto o celular é usado).
-  amostrasMovimentoParaRevogar: 3,
+  janelaConfirmacaoMs: 1000,
+  // Girar o pulso pra olhar a tela facilmente passa de 40-60°/s; segurar
+  // parado (mesmo com tremor de mão) fica na casa de poucos graus/segundo.
+  velocidadeAngularManuseio: 25,
+  limiarMovimentoSignificativo: 2.0,
 } as const;
+
+/** Menor distância angular entre dois ângulos em graus (-180..180), tratando o wraparound. */
+function diferencaAngular(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
 
 export class FocusSession {
   private estado: EstadoFocoSessao = "aguardando";
@@ -114,10 +145,19 @@ export class FocusSession {
   private distracaoSegundosAcumulado = 0;
   private ultimaTransicaoEm: number;
 
+  // -- Canal de orientação --
+  private betaAnterior: number | null = null;
+  private tOrientacaoAnterior: number | null = null;
+  /** Desde quando o beta está CONTINUAMENTE dentro da tolerância de bruços (null = não está). */
+  private faceDownDesde: number | null = null;
+
+  // -- Canal de aceleração (imobilidade) --
   private ultimaMagnitude: number | null = null;
   private amostrasMotion: { t: number; delta: number }[] = [];
-  /** Contador de leituras seguidas de movimento significativo -- usado só pra revogar proteção. */
-  private amostrasMovimentoSignificativoSeguidas = 0;
+
+  // -- Manuseio (compartilhado entre os dois canais) --
+  /** Timestamp da última evidência de manuseio de verdade, de qualquer canal. */
+  private ultimoManuseioEm = -Infinity;
 
   /** Timestamp de quando entrou em "aguardando" — usado pra saber quando a janela de reação estoura. */
   private aguardandoDesde: number;
@@ -136,66 +176,75 @@ export class FocusSession {
 
   /** Chamar a cada leitura de `deviceorientation` com o ângulo beta (graus, -180 a 180). */
   reportarOrientacao(betaGraus: number): void {
+    const agora = this.agora();
     const tolerancia = this.opts.toleranciaFaceDownGraus ?? DEFAULTS.toleranciaFaceDownGraus;
+    const janela = this.opts.janelaConfirmacaoMs ?? DEFAULTS.janelaConfirmacaoMs;
+    const limiarVelocidade = this.opts.velocidadeAngularManuseio ?? DEFAULTS.velocidadeAngularManuseio;
+
+    if (this.betaAnterior !== null && this.tOrientacaoAnterior !== null) {
+      const deltaAngular = diferencaAngular(betaGraus, this.betaAnterior);
+      const deltaTempoS = Math.max((agora - this.tOrientacaoAnterior) / 1000, 0.001);
+      const velocidadeAngular = deltaAngular / deltaTempoS;
+      if (velocidadeAngular > limiarVelocidade) this.registrarManuseio(agora);
+    }
+    this.betaAnterior = betaGraus;
+    this.tOrientacaoAnterior = agora;
+
     const deCaraPraBaixo = Math.abs(Math.abs(betaGraus) - 180) <= tolerancia;
-    if (deCaraPraBaixo) this.marcarProtegido("orientacao");
+    if (!deCaraPraBaixo) {
+      this.faceDownDesde = null;
+      return;
+    }
+    if (this.faceDownDesde === null) this.faceDownDesde = agora;
+
+    const estavelPorTempoSuficiente = agora - this.faceDownDesde >= janela;
+    const semManuseioRecente = agora - this.ultimoManuseioEm >= janela;
+    if (estavelPorTempoSuficiente && semManuseioRecente) this.marcarProtegido("orientacao");
   }
 
   /** Chamar a cada leitura de `devicemotion` com a magnitude da aceleração (m/s²). */
   reportarMotion(magnitudeAceleracao: number): void {
-    const janela = this.opts.janelaImobilidadeMs ?? DEFAULTS.janelaImobilidadeMs;
-    const limiar = this.opts.limiarImobilidade ?? DEFAULTS.limiarImobilidade;
     const agora = this.agora();
+    const janelaImobilidade = this.opts.janelaImobilidadeMs ?? DEFAULTS.janelaImobilidadeMs;
+    const limiarImobilidade = this.opts.limiarImobilidade ?? DEFAULTS.limiarImobilidade;
+    const limiarManuseio = this.opts.limiarMovimentoSignificativo ?? DEFAULTS.limiarMovimentoSignificativo;
+    const janelaConfirmacao = this.opts.janelaConfirmacaoMs ?? DEFAULTS.janelaConfirmacaoMs;
 
-    let delta: number | null = null;
     if (this.ultimaMagnitude !== null) {
-      delta = Math.abs(magnitudeAceleracao - this.ultimaMagnitude);
+      const delta = Math.abs(magnitudeAceleracao - this.ultimaMagnitude);
       this.amostrasMotion.push({ t: agora, delta });
+      if (delta > limiarManuseio) this.registrarManuseio(agora);
     }
     this.ultimaMagnitude = magnitudeAceleracao;
-    this.amostrasMotion = this.amostrasMotion.filter((a) => agora - a.t <= janela);
+    this.amostrasMotion = this.amostrasMotion.filter((a) => agora - a.t <= janelaImobilidade);
 
     const cobreAJanelaToda =
-      this.amostrasMotion.length > 0 && agora - this.amostrasMotion[0].t >= janela * 0.8;
-    const semVariacaoRelevante = this.amostrasMotion.every((a) => a.delta <= limiar);
+      this.amostrasMotion.length > 0 && agora - this.amostrasMotion[0].t >= janelaImobilidade * 0.8;
+    const semVariacaoRelevante = this.amostrasMotion.every((a) => a.delta <= limiarImobilidade);
+    const semManuseioRecente = agora - this.ultimoManuseioEm >= janelaConfirmacao;
 
-    if (cobreAJanelaToda && semVariacaoRelevante) this.marcarProtegido("imobilidade");
-
-    this.avaliarRevogacaoPorMovimento(delta);
+    if (cobreAJanelaToda && semVariacaoRelevante && semManuseioRecente) {
+      this.marcarProtegido("imobilidade");
+    }
   }
 
   /**
-   * Enquanto já protegido e visível, movimento claro e sustentado desfaz a
-   * proteção (ver explicação da "zona morta" no topo do arquivo). Um pico
-   * isolado não conta -- exige `amostrasMovimentoParaRevogar` leituras
-   * seguidas acima do limiar antes de revogar.
+   * Evidência de manuseio de verdade, vinda de qualquer canal (rotação
+   * rápida via ângulo, ou variação de aceleração). Bloqueia confirmações
+   * novas por `janelaConfirmacaoMs` e, se já tinha proteção confirmada,
+   * revoga na hora -- sem exigir várias leituras seguidas (um falso positivo
+   * isolado custa só um reconfirmar rápido, não vale complicar o filtro).
    */
-  private avaliarRevogacaoPorMovimento(delta: number | null): void {
-    if (delta === null) return;
-
-    const limiarRevogar = this.opts.limiarMovimentoSignificativo ?? DEFAULTS.limiarMovimentoSignificativo;
-    const amostrasNecessarias = this.opts.amostrasMovimentoParaRevogar ?? DEFAULTS.amostrasMovimentoParaRevogar;
-
-    if (delta > limiarRevogar) {
-      this.amostrasMovimentoSignificativoSeguidas += 1;
-    } else {
-      this.amostrasMovimentoSignificativoSeguidas = 0;
-    }
-
-    if (
-      this.protegido &&
-      this.estado === "protegido_visivel" &&
-      this.amostrasMovimentoSignificativoSeguidas >= amostrasNecessarias
-    ) {
-      this.revogarProtecao();
-    }
+  private registrarManuseio(agora: number): void {
+    this.ultimoManuseioEm = agora;
+    if (this.protegido && this.estado === "protegido_visivel") this.revogarProtecao();
   }
 
   private revogarProtecao(): void {
     this.protegido = false;
     this.motivoProtegido = null;
+    this.faceDownDesde = null;
     this.amostrasMotion = [];
-    this.amostrasMovimentoSignificativoSeguidas = 0;
     this.opts.onProtegidoChange?.(false, null);
     this.transicionar("aguardando");
     this.aguardandoDesde = this.ultimaTransicaoEm;
@@ -209,8 +258,12 @@ export class FocusSession {
       // Cada sumida nova precisa de uma confirmação nova — não carrega a proteção antiga.
       this.protegido = false;
       this.motivoProtegido = null;
+      this.faceDownDesde = null;
       this.amostrasMotion = [];
       this.ultimaMagnitude = null;
+      this.betaAnterior = null;
+      this.tOrientacaoAnterior = null;
+      this.ultimoManuseioEm = -Infinity;
     } else if (this.protegido) {
       this.transicionar("focado");
     } else {
