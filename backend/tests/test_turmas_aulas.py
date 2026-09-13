@@ -91,7 +91,7 @@ def test_professor_cria_aula_na_propria_turma(client: TestClient):
     assert r.status_code == 201, r.text
     aula = r.json()
     assert aula["modo_atual"] == "livre"
-    assert aula["status"] == "nao_iniciada"
+    assert aula["status"] == "em_andamento"
     assert len(aula["codigo_aula"]) >= 5
 
 
@@ -150,11 +150,11 @@ def test_obter_aula_bloqueada_pra_aluno_que_nao_participa(client: TestClient):
     assert r.status_code == 403, r.text
 
 
-def test_professor_muda_modo_e_isso_marca_aula_como_em_andamento(client: TestClient):
+def test_professor_muda_modo_e_aula_continua_em_andamento(client: TestClient):
     h_prof = _cadastrar_professor(client, "prof7@escola.com")
     turma = client.post("/turmas", json={"nome": "Educação Física"}, headers=h_prof).json()
     aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
-    assert aula["status"] == "nao_iniciada"
+    assert aula["status"] == "em_andamento"
 
     r = client.post(f"/aulas/{aula['id']}/modo", json={"modo": "foco"}, headers=h_prof)
     assert r.status_code == 200, r.text

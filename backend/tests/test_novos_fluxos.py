@@ -177,3 +177,23 @@ def test_quizzes_por_turma_e_metricas_professor(
     assert est["media_atividade"] == 90.0
     assert len(est["alunos"]) == 1
     assert est["alunos"][0]["id"] == aluno.id
+
+
+def test_criar_aula_inicia_automaticamente(client, professor_auth, session):
+    prof, prof_headers = professor_auth
+    # Criar turma
+    res_turma = client.post("/turmas", json={"nome": "História Moderna"}, headers=prof_headers)
+    assert res_turma.status_code == 201
+    turma_id = res_turma.json()["id"]
+
+    # Criar aula
+    res_aula = client.post(
+        "/aulas",
+        json={"turma_id": turma_id, "titulo": "Revolução Francesa"},
+        headers=prof_headers,
+    )
+    assert res_aula.status_code == 201
+    aula = res_aula.json()
+    assert aula["titulo"] == "Revolução Francesa"
+    assert aula["status"] == "em_andamento"
+    assert aula["iniciada_em"] is not None
