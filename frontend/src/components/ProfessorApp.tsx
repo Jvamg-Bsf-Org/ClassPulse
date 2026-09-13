@@ -356,58 +356,8 @@ export default function ProfessorApp() {
                 </div>
               </div>
 
-              {/* Card 2: Projeção do Código de Entrada */}
-              <div className="live-panel-card">
-                <div className="live-panel-card-header">
-                  <div>
-                    <h3>📺 Entrada dos Alunos na Sala</h3>
-                    <p className="subtitle-text">
-                      Projete este código no projetor ou compartilhe para que os alunos ingressem no app.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="live-projection-box">
-                  <div className="live-projection-info">
-                    <span className="live-label">CÓDIGO DE ENTRADA DA SALA</span>
-                    <span className="live-projection-code">#{aulaSelecionada.codigo_aula}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => copiarParaClipboard(aulaSelecionada.codigo_aula, 'Código da Sala')}
-                    title="Copiar código de entrada"
-                  >
-                    📋 Copiar Código da Sala
-                  </button>
-                </div>
-                <p className="live-code-sub">
-                  Os alunos matriculados na turma devem acessar a turma no ClassPulse ou digitar este código para entrar na sessão ao vivo.
-                </p>
-              </div>
-
-              {/* Card 3: Atividades e Quizzes Interativos */}
-              <div className="live-panel-card">
-                <div className="live-panel-card-header">
-                  <div>
-                    <h3>⚡ Atividades e Quizzes da Turma</h3>
-                    <p className="subtitle-text">
-                      Dispare perguntas síncronas do banco de quizzes desta turma com metas cooperativas anti-ansiedade ou rankings em tempo real.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => setAbaControle('atividade')}
-                  >
-                    Ir para Disparo de Atividades →
-                  </button>
-                </div>
-              </div>
-
-              {/* Card 4: Orientações da Sessão */}
-              <div className="live-panel-card">
-                <h3 style={{ marginBottom: '0.75rem' }}>💡 Orientações da Sessão</h3>
+              {/* Orientações da Sessão (texto direto no rodapé, sem painel) */}
+              <div className="session-guidelines-footer">
                 <ul className="session-guidelines-list">
                   <li>
                     <strong>🎯 Modo Foco:</strong> Estimula a retenção desincentivando o uso secundário do aparelho durante a explicação.
