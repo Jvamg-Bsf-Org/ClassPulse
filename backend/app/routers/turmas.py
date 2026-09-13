@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.core.codes import gerar_codigo
 from app.db import get_session
@@ -12,6 +12,7 @@ from app.models import (
     Grupo,
     GrupoMembro,
     Matricula,
+    Participacao,
     Partida,
     PartidaPulo,
     Pergunta,
@@ -113,52 +114,56 @@ def excluir_turma(
     if not turma or turma.professor_id != professor.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Turma não encontrada")
 
-    # 1. Remover todas as matrículas (exclusão automática para os alunos)
-    matriculas = session.exec(select(Matricula).where(Matricula.turma_id == turma_id)).all()
-    for m in matriculas:
-        session.delete(m)
+    # 1. Identificar todas as aulas e quizzes vinculados à turma
+    aula_ids = [a for a in session.exec(select(Aula.id).where(Aula.turma_id == turma_id)).all()]
+    quiz_ids = list(
+        set(
+            [q for q in session.exec(select(Quiz.id).where(Quiz.turma_id == turma_id)).all()]
+            + ([q for q in session.exec(select(Quiz.id).where(Quiz.aula_id.in_(aula_ids))).all()] if aula_ids else [])
+        )
+    )
 
-    # 2. Remover todas as aulas e suas dependências
-    aulas = session.exec(select(Aula).where(Aula.turma_id == turma_id)).all()
-    for aula in aulas:
-        partidas = session.exec(select(Partida).where(Partida.aula_id == aula.id)).all()
-        for p in partidas:
-            # Respostas, pulos, grupos
-            respostas = session.exec(select(Resposta).where(Resposta.partida_id == p.id)).all()
-            for r in respostas:
-                session.delete(r)
+    # 2. Identificar partidas, perguntas e grupos vinculados
+    partida_ids = list(
+        set(
+            ([p for p in session.exec(select(Partida.id).where(Partida.aula_id.in_(aula_ids))).all()] if aula_ids else [])
+            + ([p for p in session.exec(select(Partida.id).where(Partida.quiz_id.in_(quiz_ids))).all()] if quiz_ids else [])
+        )
+    )
+    pergunta_ids = (
+        [p for p in session.exec(select(Pergunta.id).where(Pergunta.quiz_id.in_(quiz_ids))).all()]
+        if quiz_ids
+        else []
+    )
+    grupo_ids = list(
+        set(
+            ([g for g in session.exec(select(Grupo.id).where(Grupo.partida_id.in_(partida_ids))).all()] if partida_ids else [])
+            + ([g for g in session.exec(select(Grupo.id).where(Grupo.quiz_id.in_(quiz_ids))).all()] if quiz_ids else [])
+        )
+    )
 
-            pulos = session.exec(select(PartidaPulo).where(PartidaPulo.partida_id == p.id)).all()
-            for pulo in pulos:
-                session.delete(pulo)
+    # 3. Deletar em ordem inversa de dependências (folhas para a raiz)
+    if partida_ids:
+        session.exec(delete(Resposta).where(Resposta.partida_id.in_(partida_ids)))
+        session.exec(delete(PartidaPulo).where(PartidaPulo.partida_id.in_(partida_ids)))
+    if pergunta_ids:
+        session.exec(delete(Resposta).where(Resposta.pergunta_id.in_(pergunta_ids)))
+    if grupo_ids:
+        session.exec(delete(GrupoMembro).where(GrupoMembro.grupo_id.in_(grupo_ids)))
+        session.exec(delete(Grupo).where(Grupo.id.in_(grupo_ids)))
+    if partida_ids:
+        session.exec(delete(Partida).where(Partida.id.in_(partida_ids)))
+    if aula_ids:
+        session.exec(delete(Participacao).where(Participacao.aula_id.in_(aula_ids)))
+    if pergunta_ids:
+        session.exec(delete(Alternativa).where(Alternativa.pergunta_id.in_(pergunta_ids)))
+        session.exec(delete(Pergunta).where(Pergunta.id.in_(pergunta_ids)))
+    if quiz_ids:
+        session.exec(delete(Quiz).where(Quiz.id.in_(quiz_ids)))
+    if aula_ids:
+        session.exec(delete(Aula).where(Aula.id.in_(aula_ids)))
 
-            grupos = session.exec(select(Grupo).where(Grupo.partida_id == p.id)).all()
-            for g in grupos:
-                membros = session.exec(select(GrupoMembro).where(GrupoMembro.grupo_id == g.id)).all()
-                for membro in membros:
-                    session.delete(membro)
-                session.delete(g)
-
-            session.delete(p)
-
-        participacoes = session.exec(select(Participacao).where(Participacao.aula_id == aula.id)).all()
-        for part in participacoes:
-            session.delete(part)
-
-        session.delete(aula)
-
-    # 3. Remover quizzes associados à turma
-    quizzes = session.exec(select(Quiz).where(Quiz.turma_id == turma_id)).all()
-    for q in quizzes:
-        perguntas = session.exec(select(Pergunta).where(Pergunta.quiz_id == q.id)).all()
-        for perg in perguntas:
-            alts = session.exec(select(Alternativa).where(Alternativa.pergunta_id == perg.id)).all()
-            for alt in alts:
-                session.delete(alt)
-            session.delete(perg)
-        session.delete(q)
-
-    # 4. Remover a própria turma
-    session.delete(turma)
+    session.exec(delete(Matricula).where(Matricula.turma_id == turma_id))
+    session.exec(delete(Turma).where(Turma.id == turma_id))
     session.commit()
 
