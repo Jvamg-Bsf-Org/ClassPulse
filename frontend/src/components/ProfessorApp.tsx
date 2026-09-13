@@ -53,6 +53,11 @@ export default function ProfessorApp() {
   const [mostrandoFormAula, setMostrandoFormAula] = useState(false)
 
   // Feedback
+  // carregando* separados por ação -- um flag só era reusado entre a busca
+  // inicial e os formulários de criar turma/aula, então criar uma turma
+  // fazia o dashboard inteiro piscar como "carregando" e vice-versa.
+  const [carregandoInicial, setCarregandoInicial] = useState(true)
+  const [carregandoTurma, setCarregandoTurma] = useState(false)
   const [carregando, setCarregando] = useState(false)
   const [alterandoModo, setAlterandoModo] = useState<Aula['modo_atual'] | null>(null)
   const [encerrandoAula, setEncerrandoAula] = useState(false)
@@ -62,7 +67,7 @@ export default function ProfessorApp() {
 
   // Carregar dados gerais
   async function carregarDadosGerais() {
-    setCarregando(true)
+    setCarregandoInicial(true)
     try {
       const [m, t] = await Promise.all([
         obterMetricasProfessor().catch(() => null),
@@ -73,7 +78,7 @@ export default function ProfessorApp() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao carregar dados do professor.')
     } finally {
-      setCarregando(false)
+      setCarregandoInicial(false)
     }
   }
 
@@ -83,6 +88,7 @@ export default function ProfessorApp() {
 
   // Carregar aulas e estatísticas da turma selecionada
   async function carregarDadosTurma(turmaId: number) {
+    setCarregandoTurma(true)
     try {
       const [listaAulas, stats] = await Promise.all([
         listarAulasDaTurma(turmaId),
@@ -92,6 +98,8 @@ export default function ProfessorApp() {
       setEstatisticasTurma(stats)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao carregar aulas da turma.')
+    } finally {
+      setCarregandoTurma(false)
     }
   }
 
@@ -101,6 +109,11 @@ export default function ProfessorApp() {
       setEstatisticasTurma(null)
       return
     }
+    // Limpa os dados da turma anterior antes de buscar -- sem isso, trocar
+    // de turma podia mostrar por um instante as aulas/estatísticas de quem
+    // estava selecionado antes.
+    setAulas([])
+    setEstatisticasTurma(null)
     carregarDadosTurma(turmaSelecionada.id)
   }, [turmaSelecionada])
 
@@ -430,6 +443,9 @@ export default function ProfessorApp() {
           </div>
 
           {/* Grid de Métricas Principais */}
+          {carregandoInicial ? (
+            <div className="loading-state">Carregando seu painel...</div>
+          ) : (
           <div className="metrics-grid">
             <div className="metric-card focus-card">
               <div className="metric-header">
@@ -493,6 +509,7 @@ export default function ProfessorApp() {
               <p className="metric-subtext">Total de aulas criadas</p>
             </div>
           </div>
+          )}
 
           {/* Aulas Recentes */}
           {metricas && metricas.aulas_recentes.length > 0 && (
@@ -617,7 +634,9 @@ export default function ProfessorApp() {
               )}
 
               {/* Grid de Turmas */}
-              {turmas.length === 0 ? (
+              {carregandoInicial ? (
+                <div className="loading-state">Carregando suas turmas...</div>
+              ) : turmas.length === 0 ? (
                 <div className="empty-turmas-card fade-in" style={{ marginTop: '1.5rem' }}>
                   <div className="empty-turmas-icon">🏫</div>
                   <h3>Nenhuma turma cadastrada ainda</h3>
@@ -839,7 +858,9 @@ export default function ProfessorApp() {
                     </div>
                   )}
 
-                  {aulas.length === 0 ? (
+                  {carregandoTurma ? (
+                    <div className="loading-state">Carregando aulas...</div>
+                  ) : aulas.length === 0 ? (
                     <div className="empty-aulas-box" style={{ marginTop: '1.25rem' }}>
                       <p>Nenhuma aula criada nesta turma ainda.</p>
                       <button className="btn-primary" onClick={() => setMostrandoFormAula(true)}>
@@ -906,7 +927,9 @@ export default function ProfessorApp() {
               {/* SUB-ABA 3: ESTATÍSTICAS DA TURMA */}
               {subAbaTurma === 'estatisticas' && (
                 <div className="tab-content fade-in" style={{ marginTop: '1rem' }}>
-                  {estatisticasTurma ? (
+                  {carregandoTurma ? (
+                    <div className="loading-state">Carregando estatísticas...</div>
+                  ) : estatisticasTurma ? (
                     <div>
                       {/* Grid de Resumo da Turma */}
                       <div className="metrics-grid">
@@ -1005,7 +1028,9 @@ export default function ProfessorApp() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando estatísticas...</div>
+                    <div style={{ padding: '2rem', textAlign: 'center' }}>
+                      Não foi possível carregar as estatísticas desta turma.
+                    </div>
                   )}
                 </div>
               )}

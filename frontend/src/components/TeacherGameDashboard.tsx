@@ -28,6 +28,7 @@ export default function TeacherGameDashboard({
   onPartidaCriada,
 }: Props) {
   const [quizzes, setQuizzes] = useState<QuizResumo[]>([])
+  const [carregandoQuizzes, setCarregandoQuizzes] = useState(true)
   const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null)
   const [partidaStatus, setPartidaStatus] = useState<PartidaProfessorStatus | null>(null)
   const [carregando, setCarregando] = useState(false)
@@ -43,12 +44,15 @@ export default function TeacherGameDashboard({
 
   // Carregar lista de quizzes (filtrada por turma se fornecida)
   useEffect(() => {
-    listarQuizzes(turmaId).then((data) => {
-      setQuizzes(data)
-      if (data.length > 0) {
-        setSelectedQuizId((prev) => prev ?? data[0].id)
-      }
-    })
+    setCarregandoQuizzes(true)
+    listarQuizzes(turmaId)
+      .then((data) => {
+        setQuizzes(data)
+        if (data.length > 0) {
+          setSelectedQuizId((prev) => prev ?? data[0].id)
+        }
+      })
+      .finally(() => setCarregandoQuizzes(false))
   }, [])
 
 
@@ -211,7 +215,9 @@ export default function TeacherGameDashboard({
             </p>
           </div>
 
-          {quizzes.length === 0 ? (
+          {carregandoQuizzes ? (
+            <div className="loading-state">Carregando seus quizzes...</div>
+          ) : quizzes.length === 0 ? (
             <div className="alert-notice">
               ⚠️ Nenhum quiz cadastrado no seu banco de questões. Crie um quiz na aba "Banco de Quizzes" antes de disparar.
             </div>

@@ -21,14 +21,14 @@ vi.mock('../services/api', async (importOriginal) => {
 })
 
 describe('AlunoApp Component Render', () => {
-  it('renders student dashboard with tabs', () => {
+  it('renders student dashboard shell with tabs, showing a loading state before the mount fetch resolves', () => {
+    // renderToString é síncrono e nunca espera o useEffect/fetch terminar --
+    // por isso o esperado aqui é o estado de carregamento, não os dados.
     const html = renderToString(<AlunoApp />)
     expect(html).toContain('Visão Geral')
     expect(html).toContain('Minhas Turmas')
     expect(html).toContain('Visão Geral do Aluno')
-    expect(html).toContain('Média de Foco')
-    expect(html).toContain('Média de Atividades')
-    expect(html).toContain('Turmas')
-    expect(html).toContain('Aulas Concluídas')
+    expect(html).toContain('Carregando seu painel...')
+    expect(html).not.toContain('Média de Foco')
   })
 })

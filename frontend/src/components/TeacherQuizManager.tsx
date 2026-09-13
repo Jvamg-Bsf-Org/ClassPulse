@@ -13,6 +13,7 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
   const [carregando, setCarregando] = useState(true)
   const [criando, setCriando] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [excluindoId, setExcluindoId] = useState<number | null>(null)
 
   // Form states
   const [titulo, setTitulo] = useState('')
@@ -139,11 +140,14 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
 
   async function handleDeletar(id: number) {
     if (!confirm('Deseja excluir este quiz?')) return
+    setExcluindoId(id)
     try {
       await deletarQuiz(id)
-      carregar()
+      await carregar()
     } catch (err: any) {
       alert(err.message)
+    } finally {
+      setExcluindoId(null)
     }
   }
 
@@ -327,9 +331,10 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
                 <button
                   className="btn-delete"
                   onClick={() => handleDeletar(q.id)}
+                  disabled={excluindoId === q.id}
                   title="Excluir quiz"
                 >
-                  🗑️
+                  {excluindoId === q.id ? '...' : '🗑️'}
                 </button>
                 {onIniciarPartidaComQuiz && (
                   <button

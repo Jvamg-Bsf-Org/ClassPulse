@@ -52,7 +52,13 @@ export default function AlunoApp() {
   const [mostrandoFormAula, setMostrandoFormAula] = useState(false)
 
   // Estados de feedback
+  // carregandoInicial/carregandoTurma separados de carregando (que é dos
+  // formulários) -- um flag só reusado entre a busca automática e as ações
+  // do aluno fazia o dashboard "piscar carregando" ao entrar numa turma, etc.
+  const [carregandoInicial, setCarregandoInicial] = useState(true)
+  const [carregandoTurma, setCarregandoTurma] = useState(false)
   const [carregando, setCarregando] = useState(false)
+  const [entrandoAulaId, setEntrandoAulaId] = useState<number | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
 
@@ -72,15 +78,13 @@ export default function AlunoApp() {
 
   // Carregar detalhes ao selecionar uma turma
   useEffect(() => {
-    if (!turmaSelecionada) {
-      setDetalhesTurma(null)
-      return
-    }
+    setDetalhesTurma(null)
+    if (!turmaSelecionada) return
     carregarDetalhesDaTurma(turmaSelecionada.id)
   }, [turmaSelecionada])
 
   async function carregarDadosGerais() {
-    setCarregando(true)
+    setCarregandoInicial(true)
     try {
       const [m, t] = await Promise.all([obterMetricasAluno(), turmasMatriculadas()])
       setMetricas(m)
@@ -88,19 +92,19 @@ export default function AlunoApp() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível carregar seus dados.')
     } finally {
-      setCarregando(false)
+      setCarregandoInicial(false)
     }
   }
 
   async function carregarDetalhesDaTurma(turmaId: number) {
-    setCarregando(true)
+    setCarregandoTurma(true)
     try {
       const d = await obterDetalhesTurmaAluno(turmaId)
       setDetalhesTurma(d)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao carregar detalhes da turma.')
     } finally {
-      setCarregando(false)
+      setCarregandoTurma(false)
     }
   }
 
@@ -157,10 +161,11 @@ export default function AlunoApp() {
     }
   }
 
-  async function handleEntrarAulaPorCodigo(codigo: string) {
+  async function handleEntrarAulaPorCodigo(codigo: string, origemAulaId?: number) {
     setErro(null)
     setSucesso(null)
     setCarregando(true)
+    if (origemAulaId) setEntrandoAulaId(origemAulaId)
     try {
       // Gate: sem confirmar sensor de verdade, nem tenta entrar. É proposital
       // não explicar o motivo técnico pro aluno -- só uma mensagem genérica.
@@ -183,6 +188,7 @@ export default function AlunoApp() {
       setErro(e instanceof Error ? e.message : 'Código de aula inválido ou não autorizado.')
     } finally {
       setCarregando(false)
+      setEntrandoAulaId(null)
     }
   }
 
@@ -360,6 +366,9 @@ export default function AlunoApp() {
           </div>
 
           {/* Grid de Métricas Principais */}
+          {carregandoInicial ? (
+            <div className="loading-state">Carregando seu painel...</div>
+          ) : (
           <div className="metrics-grid">
             <div className="metric-card focus-card">
               <div className="metric-header">
@@ -426,6 +435,7 @@ export default function AlunoApp() {
               <p className="metric-subtext">Ver histórico de aulas assistidas →</p>
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -570,7 +580,9 @@ export default function AlunoApp() {
               )}
 
               {/* BOTÃO PADRÃO EM DESTAQUE: Caso NÃO esteja em nenhuma turma */}
-              {turmas.length === 0 ? (
+              {carregandoInicial ? (
+                <div className="loading-state">Carregando suas turmas...</div>
+              ) : turmas.length === 0 ? (
                 <div className="empty-turmas-card fade-in">
                   <div className="empty-turmas-icon">🎓</div>
                   <h3>Você ainda não está em nenhuma turma</h3>
@@ -742,7 +754,9 @@ export default function AlunoApp() {
 
               {/* Lista de Aulas */}
               <div className="aulas-list">
-                {detalhesTurma && detalhesTurma.aulas.length === 0 ? (
+                {carregandoTurma ? (
+                  <div className="loading-state">Carregando aulas...</div>
+                ) : detalhesTurma && detalhesTurma.aulas.length === 0 ? (
                   <div className="empty-aulas-box">
                     <p>Nenhuma aula registrada nesta turma ainda.</p>
                   </div>
@@ -793,18 +807,18 @@ export default function AlunoApp() {
                         {a.status === 'em_andamento' ? (
                           <button
                             className="btn-primary btn-join-live"
-                            onClick={() => handleEntrarAulaPorCodigo(a.codigo_aula)}
+                            onClick={() => handleEntrarAulaPorCodigo(a.codigo_aula, a.id)}
                             disabled={carregando}
                           >
-                            Entrar na Aula Agora
+                            {entrandoAulaId === a.id ? 'Entrando...' : 'Entrar na Aula Agora'}
                           </button>
                         ) : (
                           <button
                             className="btn-ghost"
-                            onClick={() => handleEntrarAulaPorCodigo(a.codigo_aula)}
+                            onClick={() => handleEntrarAulaPorCodigo(a.codigo_aula, a.id)}
                             disabled={carregando}
                           >
-                            Acessar Aula
+                            {entrandoAulaId === a.id ? 'Entrando...' : 'Acessar Aula'}
                           </button>
                         )}
                       </div>

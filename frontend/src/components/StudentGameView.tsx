@@ -40,6 +40,7 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
 
   const [enviando, setEnviando] = useState(false)
   const [pulou, setPulou] = useState(status.pulou)
+  const [pulando, setPulando] = useState(false)
   const [resultadoFinal, setResultadoFinal] = useState<PartidaResultado | null>(null)
   const [carregandoResultado, setCarregandoResultado] = useState(false)
 
@@ -138,11 +139,14 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
     if (!confirm('Deseja realmente não participar desta atividade? Seu Score de Foco será mantido.')) {
       return
     }
+    setPulando(true)
     try {
       await pularPartida(status.id)
       setPulou(true)
     } catch (err: any) {
       alert(err.message)
+    } finally {
+      setPulando(false)
     }
   }
 
@@ -194,8 +198,8 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
         <div className="header-top">
           <span className="badge-tag">FASE 2 • ATIVIDADE</span>
           {!status.obrigatorio && !submetido && (
-            <button className="btn-skip" onClick={handlePular}>
-              Pular Atividade
+            <button className="btn-skip" onClick={handlePular} disabled={pulando}>
+              {pulando ? 'Pulando...' : 'Pular Atividade'}
             </button>
           )}
         </div>
