@@ -86,7 +86,11 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
     setPulou(status.pulou)
   }, [status])
 
-  const podeResponder = discussaoSegundos === 0 && (totaisSegundos === null || totaisSegundos > 0)
+  // status.status !== 'em_andamento' cobre o professor encerrando na mão
+  // antes do tempo/discussão acabar -- sem isso os botões ficavam interativos
+  // por um instante mostrando uma atividade que já não existe mais.
+  const tempoEsgotado = totaisSegundos === 0
+  const podeResponder = status.status === 'em_andamento' && discussaoSegundos === 0 && !tempoEsgotado
 
   // Seleciona uma alternativa localmente (não envia ao professor ainda para não oscilar os dados)
   function handleSelecionarAlternativa(perguntaId: number, alternativaId: number) {
@@ -173,6 +177,15 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
   }
 
   const qtdAtuais = Object.keys(submetido ? respostas : selecoesLocais).length
+
+  // Sem isso o aluno via um formulário com tudo desabilitado e nenhuma pista
+  // do porquê -- "tempo esgotado" e "professor encerrou antes da hora" são
+  // os dois jeitos de chegar aqui sem nunca ter enviado nada.
+  const naoEnviouATempo = !submetido && discussaoSegundos === 0 && !podeResponder
+  const motivoNaoEnviou =
+    status.status !== 'em_andamento'
+      ? 'O professor encerrou a atividade antes de você enviar suas respostas.'
+      : 'O tempo da atividade esgotou antes de você enviar suas respostas.'
 
   return (
     <div className="student-container pulse-fade-in">
@@ -276,15 +289,31 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
       {/* Bloco de Confirmação e Submissão Final */}
       <div className="submit-section-card">
         <div className="submit-info">
-          <h4>{submetido ? '✅ Atividade Enviada com Sucesso' : 'Finalizar e Enviar Respostas'}</h4>
+          <h4>
+            {submetido
+              ? '✅ Atividade Enviada com Sucesso'
+              : naoEnviouATempo
+                ? '⏱️ Não deu tempo de enviar'
+                : 'Finalizar e Enviar Respostas'}
+          </h4>
           <p>
             {submetido
               ? 'Suas respostas foram consolidadas e enviadas ao professor.'
-              : 'Você pode trocar suas opções livremente. Quando estiver pronto, clique no botão para enviar tudo ao professor.'}
+              : naoEnviouATempo
+                ? motivoNaoEnviou
+                : 'Você pode trocar suas opções livremente. Quando estiver pronto, clique no botão para enviar tudo ao professor.'}
           </p>
         </div>
 
-        {!submetido ? (
+        {submetido ? (
+          <div className="submitted-banner">
+            <span>✓ Respostas registradas</span>
+          </div>
+        ) : naoEnviouATempo ? (
+          <div className="submitted-banner">
+            <span>Suas seleções não chegaram a ser enviadas</span>
+          </div>
+        ) : (
           <button
             type="button"
             className="btn-primary btn-submit-answers"
@@ -295,10 +324,6 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
               ? 'Enviando ao Professor...'
               : `📤 Enviar Respostas (${Object.keys(selecoesLocais).length}/${status.perguntas.length})`}
           </button>
-        ) : (
-          <div className="submitted-banner">
-            <span>✓ Respostas registradas</span>
-          </div>
         )}
       </div>
 

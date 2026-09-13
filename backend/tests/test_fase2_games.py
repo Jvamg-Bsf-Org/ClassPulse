@@ -374,3 +374,73 @@ def test_partida_competitiva_ranking(
     assert ranking[1]["posicao"] == 2
     assert ranking[1]["pontos"] == 100
 
+
+def test_aluno_status_continua_disponivel_depois_da_partida_encerrar(
+    client: TestClient,
+    professor_auth,
+    alunos_auth,
+    aula_com_alunos: Aula,
+):
+    """Regressão: aluno-status era filtrado só por em_andamento, então depois
+    do professor encerrar a atividade essa rota dava 404 -- o frontend
+    interpretava isso como "sem partida" e travava numa tela de carregando
+    pra sempre, já que nada mais tentava buscar de novo."""
+    _, prof_headers = professor_auth
+    aluno1, aluno1_headers = alunos_auth[0]
+    quiz_id = _criar_quiz_exemplo(client, prof_headers)
+
+    partida_id = client.post(
+        f"/partidas/aula/{aula_com_alunos.id}/iniciar",
+        json={"quiz_id": quiz_id, "modo_execucao": "individual"},
+        headers=prof_headers,
+    ).json()["id"]
+
+    client.post(f"/partidas/{partida_id}/encerrar", headers=prof_headers)
+
+    res = client.get(f"/partidas/aula/{aula_com_alunos.id}/aluno-status", headers=aluno1_headers)
+    assert res.status_code == 200, res.text
+    corpo = res.json()
+    assert corpo["status"] == "encerrada"
+    assert corpo["pode_enviar_resposta"] is False
+
+
+def test_pode_enviar_resposta_falso_quando_professor_encerra_antes_do_tempo_acabar(
+    client: TestClient,
+    professor_auth,
+    alunos_auth,
+    aula_com_alunos: Aula,
+):
+    """pode_enviar_resposta olhava só os timers -- se o professor encerrasse
+    na mão antes do tempo limite estourar, essa flag continuava dizendo
+    "pode enviar" mesmo com a atividade já encerrada."""
+    _, prof_headers = professor_auth
+    aluno1, aluno1_headers = alunos_auth[0]
+    quiz_id = _criar_quiz_exemplo(client, prof_headers)
+
+    partida_id = client.post(
+        f"/partidas/aula/{aula_com_alunos.id}/iniciar",
+        json={"quiz_id": quiz_id, "modo_execucao": "individual", "tempo_limite_segundos": 600},
+        headers=prof_headers,
+    ).json()["id"]
+
+    # ainda em andamento e com tempo de sobra -> pode enviar
+    antes = client.get(f"/partidas/aula/{aula_com_alunos.id}/aluno-status", headers=aluno1_headers).json()
+    assert antes["pode_enviar_resposta"] is True
+
+    client.post(f"/partidas/{partida_id}/encerrar", headers=prof_headers)
+
+    depois = client.get(f"/partidas/aula/{aula_com_alunos.id}/aluno-status", headers=aluno1_headers).json()
+    assert depois["pode_enviar_resposta"] is False
+
+
+def test_nenhuma_partida_ainda_disparada_continua_dando_404(
+    client: TestClient,
+    alunos_auth,
+    aula_com_alunos: Aula,
+):
+    """Garante que a remoção do filtro de status não abriu mão do 404 genuíno
+    -- uma aula sem NENHUMA partida disparada continua sem status pra buscar."""
+    _, aluno1_headers = alunos_auth[0]
+    res = client.get(f"/partidas/aula/{aula_com_alunos.id}/aluno-status", headers=aluno1_headers)
+    assert res.status_code == 404
+

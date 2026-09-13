@@ -195,14 +195,19 @@ def obter_status_aluno(
     aluno: Aluno = Depends(get_current_aluno),
     session: Session = Depends(get_session),
 ) -> PartidaAlunoStatusRead:
+    # Sem filtro de status de propósito: depois que a partida encerra, o
+    # aluno precisa continuar conseguindo buscar ESSE status (pra ver o botão
+    # de gabarito) em vez de tomar 404. Um 404 aqui reseta `partida` pra null
+    # no frontend e a tela trava em "Carregando atividade..." pra sempre, já
+    # que nada mais dispara uma nova tentativa (ver AlunoApp.tsx).
     partida = session.exec(
         select(Partida)
-        .where(Partida.aula_id == aula_id, Partida.status == StatusPartida.em_andamento)
+        .where(Partida.aula_id == aula_id)
         .order_by(Partida.id.desc())
     ).first()
 
     if not partida:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nenhuma partida em andamento para esta aula")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nenhuma atividade foi disparada nesta aula ainda")
 
     participacao = session.exec(
         select(Participacao).where(
@@ -244,6 +249,11 @@ def obter_status_aluno(
         segundos_totais = max(0, int(delta_total))
         if segundos_totais == 0:
             pode_enviar = False
+
+    # O professor pode encerrar manualmente antes do tempo/discussão acabar --
+    # isso tem que travar o envio mesmo que os timers ainda não tenham zerado.
+    if partida.status != StatusPartida.em_andamento:
+        pode_enviar = False
 
     # Informações do grupo (se aplicável)
     grupo_info = None
