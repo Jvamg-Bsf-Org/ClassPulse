@@ -37,7 +37,7 @@ services:
       # FRONTEND_DIST_PATH no Dockerfile), então o bind mount acima nunca precisa
       # "esconder" nada aqui nem criar pasta dona-do-root no host.
       - classpulse_venv:/opt/venv
-      - classpulse_frontend_dist:/opt/frontend_dist
+      - ./frontend/dist:/opt/frontend_dist:ro
     depends_on:
       db:
         condition: service_healthy
@@ -45,4 +45,3 @@ services:
 volumes:
   classpulse_pgdata:
   classpulse_venv:
-  classpulse_frontend_dist:
