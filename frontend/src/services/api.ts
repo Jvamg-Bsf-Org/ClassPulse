@@ -258,6 +258,10 @@ export async function encerrarAula(aulaId: number): Promise<Aula> {
   return request<Aula>(`/aulas/${aulaId}/encerrar`, { method: 'POST' })
 }
 
+export async function deletarAula(aulaId: number): Promise<void> {
+  return request<void>(`/aulas/${aulaId}`, { method: 'DELETE' })
+}
+
 export async function reportarFoco(aulaId: number, focoSegundos: number): Promise<void> {
   return request<void>(`/aulas/${aulaId}/foco`, {
     method: 'POST',

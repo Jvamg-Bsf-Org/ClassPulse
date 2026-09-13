@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   criarAula,
   criarTurma,
+  deletarAula,
   encerrarAula,
   excluirTurma,
   listarAulasDaTurma,
@@ -244,6 +245,31 @@ export default function ProfessorApp() {
     navigator.clipboard.writeText(texto)
     setSucesso(`${rotulo} copiado para a área de transferência!`)
     setTimeout(() => setSucesso(null), 3000)
+  }
+
+  async function handleExcluirAula(aulaId: number, tituloAula: string) {
+    if (
+      !confirm(
+        `Deseja realmente excluir a aula "${tituloAula}"? Todos os dados de foco e atividades associados a ela serão removidos permanentemente.`
+      )
+    ) {
+      return
+    }
+    setErro(null)
+    setSucesso(null)
+    try {
+      await deletarAula(aulaId)
+      if (turmaSelecionada) {
+        carregarDadosTurma(turmaSelecionada.id)
+      }
+      if (aulaSelecionada?.id === aulaId) {
+        setAulaSelecionada(null)
+      }
+      setSucesso(`Aula "${tituloAula}" excluída com sucesso!`)
+      carregarDadosGerais()
+    } catch (e: any) {
+      setErro(e instanceof Error ? e.message : 'Erro ao excluir aula.')
+    }
   }
 
   // ========================================================
@@ -891,16 +917,25 @@ export default function ProfessorApp() {
                               Criada em: {new Date(a.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </p>
 
-                            <div style={{ marginTop: 'auto', paddingTop: '0.85rem' }}>
+                            <div style={{ marginTop: 'auto', paddingTop: '0.85rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                               <button
                                 className={`btn-primary ${isAoVivo ? 'btn-join-live' : ''}`}
-                                style={{ width: '100%', justifyContent: 'center' }}
+                                style={{ flex: 1, justifyContent: 'center' }}
                                 onClick={() => {
                                   setAulaSelecionada(a)
                                   setAbaControle('controle')
                                 }}
                               >
                                 {isAoVivo ? '🎛️ Acessar Painel Ao Vivo →' : 'Gerenciar / Iniciar Aula →'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger-sm"
+                                style={{ padding: '0.6rem 0.75rem', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                title="Excluir aula"
+                                onClick={() => handleExcluirAula(a.id, a.titulo)}
+                              >
+                                🗑️
                               </button>
                             </div>
                           </div>

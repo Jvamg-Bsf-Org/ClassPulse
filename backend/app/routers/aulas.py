@@ -1,13 +1,30 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.core.codes import gerar_codigo
 from app.core.ws_manager import manager
 from app.db import get_session
 from app.deps import get_current_aluno, get_current_professor, get_current_user
-from app.models import Aluno, Aula, Matricula, ModoAula, Participacao, Professor, StatusAula, Turma
+from app.models import (
+    Alternativa,
+    Aluno,
+    Aula,
+    Grupo,
+    GrupoMembro,
+    Matricula,
+    ModoAula,
+    Participacao,
+    Partida,
+    PartidaPulo,
+    Pergunta,
+    Professor,
+    Quiz,
+    Resposta,
+    StatusAula,
+    Turma,
+)
 from app.schemas import AulaCreate, AulaEntrarRequest, AulaModoRequest, AulaRead, FocoScoreRequest
 
 router = APIRouter(prefix="/aulas", tags=["aulas"])
@@ -223,3 +240,49 @@ def reportar_foco(
     participacao.score_foco_segundos = dados.foco_segundos
     session.add(participacao)
     session.commit()
+
+
+@router.delete("/{aula_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def excluir_aula(
+    aula_id: int,
+    professor: Professor = Depends(get_current_professor),
+    session: Session = Depends(get_session),
+) -> None:
+    aula = _aula_do_professor(session, aula_id, professor)
+
+    partida_ids = [p for p in session.exec(select(Partida.id).where(Partida.aula_id == aula_id)).all()]
+    quiz_ids = [q for q in session.exec(select(Quiz.id).where(Quiz.aula_id == aula_id)).all()]
+    pergunta_ids = (
+        [p for p in session.exec(select(Pergunta.id).where(Pergunta.quiz_id.in_(quiz_ids))).all()]
+        if quiz_ids
+        else []
+    )
+    grupo_ids = list(
+        set(
+            ([g for g in session.exec(select(Grupo.id).where(Grupo.partida_id.in_(partida_ids))).all()] if partida_ids else [])
+            + ([g for g in session.exec(select(Grupo.id).where(Grupo.quiz_id.in_(quiz_ids))).all()] if quiz_ids else [])
+        )
+    )
+
+    if partida_ids:
+        session.exec(delete(Resposta).where(Resposta.partida_id.in_(partida_ids)))
+        session.exec(delete(PartidaPulo).where(PartidaPulo.partida_id.in_(partida_ids)))
+    if pergunta_ids:
+        session.exec(delete(Resposta).where(Resposta.pergunta_id.in_(pergunta_ids)))
+    if grupo_ids:
+        session.exec(delete(GrupoMembro).where(GrupoMembro.grupo_id.in_(grupo_ids)))
+        session.exec(delete(Grupo).where(Grupo.id.in_(grupo_ids)))
+    if partida_ids:
+        session.exec(delete(Partida).where(Partida.id.in_(partida_ids)))
+    session.exec(delete(Participacao).where(Participacao.aula_id == aula_id))
+    if pergunta_ids:
+        session.exec(delete(Alternativa).where(Alternativa.pergunta_id.in_(pergunta_ids)))
+        session.exec(delete(Pergunta).where(Pergunta.id.in_(pergunta_ids)))
+    if quiz_ids:
+        session.exec(delete(Quiz).where(Quiz.id.in_(quiz_ids)))
+
+    session.exec(delete(Aula).where(Aula.id == aula_id))
+    session.commit()
+
+    await manager.broadcast(aula_id, {"evento": "aula_encerrada"})
+
