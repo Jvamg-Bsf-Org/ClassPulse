@@ -175,3 +175,84 @@ describe("FocusSession — esconder sem nunca confirmar", () => {
     expect(r.distracaoSegundos).toBe(15);
   });
 });
+
+describe("FocusSession — revogação da proteção por movimento significativo", () => {
+  it("um blip de orientação seguido de manuseio de verdade é revogado -- bloquear depois conta como distração", () => {
+    const relogio = criarRelogio();
+    const eventos: boolean[] = [];
+    const s = new FocusSession({
+      now: relogio.now,
+      limiarMovimentoSignificativo: 3,
+      amostrasMovimentoParaRevogar: 3,
+      onProtegidoChange: (p) => eventos.push(p),
+    });
+
+    s.reportarOrientacao(180); // confirma na hora (ex: girou o pulso por acaso)
+    expect(s.resumo().estadoAtual).toBe("protegido_visivel");
+
+    relogio.avancar(1_000); // continua visível e "protegido" por enquanto
+
+    // pega o celular e usa de verdade: variação grande e sustentada (não só um pico isolado)
+    s.reportarMotion(9.8);
+    relogio.avancar(50);
+    s.reportarMotion(13);
+    relogio.avancar(50);
+    s.reportarMotion(17);
+    relogio.avancar(50);
+    s.reportarMotion(11);
+
+    expect(eventos).toEqual([true, false]); // confirmou, depois foi revogado
+    expect(s.resumo().estadoAtual).toBe("aguardando");
+
+    // bloqueia a tela agora, sem ter confirmado de novo -> distração cheia,
+    // exatamente o comportamento esperado ("último comportamento antes de
+    // ficar oculto" já não é mais uma confirmação válida)
+    s.reportarVisibilidade(false);
+    relogio.avancar(10_000);
+    s.reportarVisibilidade(true);
+
+    expect(s.resumo().distracaoSegundos).toBe(10);
+  });
+
+  it("um pico isolado de movimento NÃO revoga -- ele sempre gera só 2 deltas grandes (subida e descida), abaixo do exigido", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, limiarMovimentoSignificativo: 3, amostrasMovimentoParaRevogar: 3 });
+
+    s.reportarOrientacao(180);
+    s.reportarMotion(9.8);
+    relogio.avancar(50);
+    s.reportarMotion(15); // um pico só (solavanco, ruído) -- sobe (delta grande)...
+    relogio.avancar(50);
+    s.reportarMotion(9.85); // ...e desce (delta grande de novo), mas só 2 no total
+
+    expect(s.resumo().estadoAtual).toBe("protegido_visivel");
+  });
+
+  it("movimento pequeno (tremor de mão) fica na zona morta e não revoga proteção já confirmada", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, limiarImobilidade: 0.5, limiarMovimentoSignificativo: 3 });
+
+    s.reportarOrientacao(180);
+    for (let i = 0; i < 6; i++) {
+      s.reportarMotion(9.8 + (i % 2 === 0 ? 1.2 : -1.2)); // delta ~2.4 -- entre os dois limiares
+      relogio.avancar(100);
+    }
+
+    expect(s.resumo().estadoAtual).toBe("protegido_visivel");
+  });
+
+  it("a checagem de revogação só vale visível -- movimento enquanto escondido não desfaz o foco", () => {
+    const relogio = criarRelogio();
+    const s = new FocusSession({ now: relogio.now, limiarMovimentoSignificativo: 3 });
+
+    s.reportarOrientacao(180);
+    s.reportarVisibilidade(false); // agora focado (escondido)
+    s.reportarMotion(9.8);
+    relogio.avancar(50);
+    s.reportarMotion(20); // pico grande, mas escondido -- não deveria mexer em nada
+    relogio.avancar(50);
+    s.reportarMotion(9.8);
+
+    expect(s.resumo().estadoAtual).toBe("focado");
+  });
+});

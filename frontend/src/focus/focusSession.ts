@@ -20,10 +20,28 @@
  *   - visível, ALÉM da janela de reação e ainda sem confirmar: distração — tá
  *     com o celular aceso na mão, isso não depende de sensor nenhum.
  *   - confirmou (a qualquer momento, mesmo atrasado): foco a partir daí, visível
- *     ou escondido — não importa mais.
+ *     ou escondido — não importa mais... a não ser que pegue o celular e mexa
+ *     de verdade depois (ver "revogação" abaixo).
  *   - escondeu (fechou a aba/trocou de app) SEM nunca ter confirmado: distração,
  *     sem perdão, desde o segundo 0 — ele não provou que guardou.
  *   - toda volta pra tela reseta tudo: a próxima sumida exige confirmação nova.
+ *
+ * Revogação da proteção (enquanto ainda visível): confirmar não é permanente
+ * pra sempre — se depois de confirmado o sensor de movimento detectar que o
+ * celular voltou a ser manuseado de verdade (variação de aceleração bem acima
+ * de `limiarMovimentoSignificativo`, por `amostrasMovimentoParaRevogar`
+ * leituras seguidas), a proteção é revogada e volta pro estado "aguardando"
+ * (uma nova janela de reação começa, exigindo confirmação nova). Sem isso, um
+ * único blip de orientação (ex: girar o pulso por acaso) travava "protegido"
+ * pro resto da sessão visível, mesmo que o aluno ficasse os minutos seguintes
+ * usando o celular ativamente antes de finalmente bloquear a tela.
+ *
+ * O limiar de revogação é bem mais alto que `limiarImobilidade` (não o
+ * mesmo!): entre os dois existe uma zona morta de propósito. Se fosse o
+ * mesmo valor, qualquer tremor de mão que já falha o teste de "parado"
+ * (limiar baixo, fácil de furar) ia ficar revogando e reconfirmando toda
+ * hora. Só ruído/solavanco pequeno não desfaz uma proteção válida; só
+ * manuseio claro e sustentado desfaz.
  *
  * Sem sensor confirmado não tem "modo generoso" aqui -- essa decisão é tomada
  * antes, no gate de entrada da aula (ver AlunoApp): sem sensor, o aluno nem
@@ -48,6 +66,15 @@ export interface FocusSessionOptions extends FocusSessionEvents {
   limiarImobilidade?: number;
   /** Tempo de reação (ms) visível-sem-confirmar antes de começar a contar como distração. */
   janelaReacaoMs?: number;
+  /**
+   * Variação de aceleração (m/s², entre amostras) que já indica manuseio de
+   * verdade -- usada só pra REVOGAR uma proteção já confirmada, não pra
+   * confirmar. Bem mais alto que `limiarImobilidade` de propósito (ver
+   * comentário no topo do arquivo sobre a zona morta entre os dois).
+   */
+  limiarMovimentoSignificativo?: number;
+  /** Quantas leituras seguidas acima de `limiarMovimentoSignificativo` são exigidas antes de revogar (filtra um pico isolado de ruído/solavanco). */
+  amostrasMovimentoParaRevogar?: number;
 }
 
 export type EstadoFocoSessao =
@@ -68,6 +95,14 @@ const DEFAULTS = {
   janelaImobilidadeMs: 2500,
   limiarImobilidade: 0.5,
   janelaReacaoMs: 20_000,
+  // 6x o limiar de imobilidade -- ver a zona morta explicada no topo do arquivo.
+  limiarMovimentoSignificativo: 3.0,
+  // 3, não 2: um ÚNICO pico isolado (ruído/solavanco) sempre gera exatamente
+  // 2 deltas grandes seguidos (a subida até o pico e a descida de volta ao
+  // normal) -- com 2 já revogaria por causa de UMA leitura ruim. 3 exige que
+  // o "manuseio" continue além disso, o que só acontece com movimento de
+  // verdade (o sensor dispara várias leituras enquanto o celular é usado).
+  amostrasMovimentoParaRevogar: 3,
 } as const;
 
 export class FocusSession {
@@ -81,6 +116,8 @@ export class FocusSession {
 
   private ultimaMagnitude: number | null = null;
   private amostrasMotion: { t: number; delta: number }[] = [];
+  /** Contador de leituras seguidas de movimento significativo -- usado só pra revogar proteção. */
+  private amostrasMovimentoSignificativoSeguidas = 0;
 
   /** Timestamp de quando entrou em "aguardando" — usado pra saber quando a janela de reação estoura. */
   private aguardandoDesde: number;
@@ -110,8 +147,10 @@ export class FocusSession {
     const limiar = this.opts.limiarImobilidade ?? DEFAULTS.limiarImobilidade;
     const agora = this.agora();
 
+    let delta: number | null = null;
     if (this.ultimaMagnitude !== null) {
-      this.amostrasMotion.push({ t: agora, delta: Math.abs(magnitudeAceleracao - this.ultimaMagnitude) });
+      delta = Math.abs(magnitudeAceleracao - this.ultimaMagnitude);
+      this.amostrasMotion.push({ t: agora, delta });
     }
     this.ultimaMagnitude = magnitudeAceleracao;
     this.amostrasMotion = this.amostrasMotion.filter((a) => agora - a.t <= janela);
@@ -121,6 +160,45 @@ export class FocusSession {
     const semVariacaoRelevante = this.amostrasMotion.every((a) => a.delta <= limiar);
 
     if (cobreAJanelaToda && semVariacaoRelevante) this.marcarProtegido("imobilidade");
+
+    this.avaliarRevogacaoPorMovimento(delta);
+  }
+
+  /**
+   * Enquanto já protegido e visível, movimento claro e sustentado desfaz a
+   * proteção (ver explicação da "zona morta" no topo do arquivo). Um pico
+   * isolado não conta -- exige `amostrasMovimentoParaRevogar` leituras
+   * seguidas acima do limiar antes de revogar.
+   */
+  private avaliarRevogacaoPorMovimento(delta: number | null): void {
+    if (delta === null) return;
+
+    const limiarRevogar = this.opts.limiarMovimentoSignificativo ?? DEFAULTS.limiarMovimentoSignificativo;
+    const amostrasNecessarias = this.opts.amostrasMovimentoParaRevogar ?? DEFAULTS.amostrasMovimentoParaRevogar;
+
+    if (delta > limiarRevogar) {
+      this.amostrasMovimentoSignificativoSeguidas += 1;
+    } else {
+      this.amostrasMovimentoSignificativoSeguidas = 0;
+    }
+
+    if (
+      this.protegido &&
+      this.estado === "protegido_visivel" &&
+      this.amostrasMovimentoSignificativoSeguidas >= amostrasNecessarias
+    ) {
+      this.revogarProtecao();
+    }
+  }
+
+  private revogarProtecao(): void {
+    this.protegido = false;
+    this.motivoProtegido = null;
+    this.amostrasMotion = [];
+    this.amostrasMovimentoSignificativoSeguidas = 0;
+    this.opts.onProtegidoChange?.(false, null);
+    this.transicionar("aguardando");
+    this.aguardandoDesde = this.ultimaTransicaoEm;
   }
 
   /** Chamar em todo `visibilitychange` do documento. */
