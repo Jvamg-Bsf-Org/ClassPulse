@@ -9,11 +9,16 @@ from app.core.config import settings
 TipoUsuario = Literal["professor", "aluno"]
 
 _BCRYPT_MAX_BYTES = 72
+# Custo 12 (o default do gensalt()) mede ~400ms por hash/verificação -- em toda
+# tela de login e cadastro. Custo 10 ainda é o mínimo recomendado pela OWASP e
+# cai pra ~100ms. O custo fica embutido no hash salvo, então isso não invalida
+# nem precisa de migração pra contas já cadastradas com custo 12.
+_BCRYPT_ROUNDS = 10
 
 
 def hash_password(senha: str) -> str:
     senha_bytes = senha.encode("utf-8")[:_BCRYPT_MAX_BYTES]
-    return bcrypt.hashpw(senha_bytes, bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(senha_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(senha: str, senha_hash: str) -> bool:
