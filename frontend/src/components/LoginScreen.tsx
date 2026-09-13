@@ -7,18 +7,30 @@ import {
   setToken,
 } from '../services/api'
 
+
 interface Props {
-  role: 'professor' | 'aluno'
-  onLogado: () => void
+  initialRole?: 'professor' | 'aluno'
+  onLogado: (role: 'professor' | 'aluno') => void
 }
 
-export default function LoginScreen({ role, onLogado }: Props) {
+export default function LoginScreen({ initialRole = 'professor', onLogado }: Props) {
+  const [role, setRole] = useState<'professor' | 'aluno'>(initialRole)
   const [modo, setModo] = useState<'login' | 'cadastro'>('login')
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+
+  function handleRoleChange(newRole: 'professor' | 'aluno') {
+    setRole(newRole)
+    setErro(null)
+  }
+
+  function handleModoChange(newModo: 'login' | 'cadastro') {
+    setModo(newModo)
+    setErro(null)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,13 +40,13 @@ export default function LoginScreen({ role, onLogado }: Props) {
       const resp =
         modo === 'login'
           ? role === 'professor'
-            ? await loginProfessor(email, senha)
-            : await loginAluno(email, senha)
+            ? await loginProfessor(email.trim(), senha)
+            : await loginAluno(email.trim(), senha)
           : role === 'professor'
-            ? await cadastrarProfessor(nome, email, senha)
-            : await cadastrarAluno(nome, email, senha)
+            ? await cadastrarProfessor(nome.trim(), email.trim(), senha)
+            : await cadastrarAluno(nome.trim(), email.trim(), senha)
       setToken(resp.access_token, resp.tipo)
-      onLogado()
+      onLogado(resp.tipo)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível entrar. Tente de novo.')
     } finally {
@@ -45,16 +57,46 @@ export default function LoginScreen({ role, onLogado }: Props) {
   return (
     <div className="centered-screen">
       <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>{role === 'professor' ? 'Área do Professor' : 'Área do Aluno'}</h1>
+        <div className="auth-role-selector">
+          <button
+            type="button"
+            className={`auth-role-btn ${role === 'professor' ? 'active' : ''}`}
+            onClick={() => handleRoleChange('professor')}
+          >
+            <span className="role-btn-icon">👨‍🏫</span>
+            <span className="role-btn-label">Professor</span>
+          </button>
+          <button
+            type="button"
+            className={`auth-role-btn ${role === 'aluno' ? 'active' : ''}`}
+            onClick={() => handleRoleChange('aluno')}
+          >
+            <span className="role-btn-icon">🎓</span>
+            <span className="role-btn-label">Aluno</span>
+          </button>
+        </div>
+
+        <div className="auth-header">
+          <h1>{role === 'professor' ? 'Área do Professor' : 'Área do Aluno'}</h1>
+          <p className="auth-subtitle">
+            {role === 'professor'
+              ? 'Gerencie turmas, crie quizzes e acompanhe o engajamento.'
+              : 'Participe de aulas interativas, quizzes e acompanhe seu foco.'}
+          </p>
+        </div>
 
         <div className="auth-toggle">
-          <button type="button" className={modo === 'login' ? 'active' : ''} onClick={() => setModo('login')}>
+          <button
+            type="button"
+            className={modo === 'login' ? 'active' : ''}
+            onClick={() => handleModoChange('login')}
+          >
             Entrar
           </button>
           <button
             type="button"
             className={modo === 'cadastro' ? 'active' : ''}
-            onClick={() => setModo('cadastro')}
+            onClick={() => handleModoChange('cadastro')}
           >
             Criar conta
           </button>
@@ -62,25 +104,49 @@ export default function LoginScreen({ role, onLogado }: Props) {
 
         {modo === 'cadastro' && (
           <div className="form-group">
-            <label htmlFor="nome">Nome</label>
-            <input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+            <label htmlFor="nome">Nome completo</label>
+            <input
+              id="nome"
+              placeholder={role === 'professor' ? 'Ex: Profa. Maria Silva' : 'Ex: Carlos Eduardo'}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              required
+            />
           </div>
         )}
 
         <div className="form-group">
           <label htmlFor="email">Email</label>
-          <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input
+            id="email"
+            type="email"
+            placeholder={role === 'professor' ? 'professor@escola.com' : 'aluno@escola.com'}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
 
         <div className="form-group">
           <label htmlFor="senha">Senha</label>
-          <input id="senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+          <input
+            id="senha"
+            type="password"
+            placeholder="••••••••"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            required
+          />
         </div>
 
         {erro && <p className="error-text">{erro}</p>}
 
         <button type="submit" className="btn-primary" disabled={enviando}>
-          {enviando ? 'Enviando...' : modo === 'login' ? 'Entrar' : 'Cadastrar'}
+          {enviando
+            ? 'Processando...'
+            : modo === 'login'
+              ? `Entrar como ${role === 'professor' ? 'Professor' : 'Aluno'}`
+              : `Cadastrar como ${role === 'professor' ? 'Professor' : 'Aluno'}`}
         </button>
       </form>
     </div>
