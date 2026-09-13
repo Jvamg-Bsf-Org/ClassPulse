@@ -47,5 +47,39 @@ describe('StudentGameView Component Render', () => {
     // Checks that the Submit button and section are rendered
     expect(html).toContain('Finalizar e Enviar Respostas')
     expect(html).toContain('Enviar Respostas')
+
+    // Ver Gabarito must NOT be visible while em_andamento
+    expect(html).not.toContain('Ver Gabarito &amp; Resultados')
+    expect(html).not.toContain('Ver Gabarito & Resultados')
+
+    // Botão Atualizar must NOT exist
+    expect(html).not.toContain('Atualizar')
+  })
+
+  it('renders "Ver Gabarito & Resultados" button only when professor ends activity', () => {
+    const endedStatus: PartidaAlunoStatus = {
+      id: 1,
+      aula_id: 10,
+      quiz_titulo: 'Quiz de Cinemática',
+      status: 'encerrada',
+      modo_execucao: 'individual',
+      competitivo: false,
+      obrigatorio: true,
+      iniciada_em: '2026-09-12T21:00:00Z',
+      pode_enviar_resposta: false,
+      segundos_discussao_restantes: 0,
+      segundos_totais_restantes: 0,
+      pulou: false,
+      perguntas: [],
+      respostas_enviadas: {},
+      grupo: undefined,
+    }
+
+    const html = renderToString(
+      <StudentGameView status={endedStatus} onAtualizarStatus={() => {}} />
+    )
+
+    expect(html).toContain('Ver Gabarito &amp; Resultados')
+    expect(html).not.toContain('Atualizar')
   })
 })

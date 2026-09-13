@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ModoExecucaoQuiz, PerguntaCompleta, QuizResumo } from '../types/game'
+import type { PerguntaCompleta, QuizResumo } from '../types/game'
 
 import { criarQuiz, deletarQuiz, listarQuizzes, listarQuizzesDaTurma } from '../services/api'
 
@@ -17,10 +17,6 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
   // Form states
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')
-  const [modoExecucao, setModoExecucao] = useState<ModoExecucaoQuiz>('individual')
-  const [competitivo, setCompetitivo] = useState(false)
-  const [obrigatorio, setObrigatorio] = useState(true)
-  const [metaColetiva, setMetaColetiva] = useState(80)
 
   const [perguntas, setPerguntas] = useState<PerguntaCompleta[]>([
     {
@@ -126,10 +122,6 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
         turma_id: turmaId,
         titulo,
         descricao,
-        modo_execucao: modoExecucao,
-        competitivo,
-        obrigatorio,
-        meta_coletiva_percentual: competitivo ? undefined : metaColetiva,
         perguntas,
       })
       alert('Quiz salvo com sucesso no banco de questões da turma!')
@@ -197,58 +189,6 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
               onChange={(e) => setDescricao(e.target.value)}
               rows={2}
             />
-          </div>
-
-          <div className="toggles-grid">
-            <div className="toggle-box">
-              <label htmlFor="quiz-formato">Formato Padrão:</label>
-              <select
-                id="quiz-formato"
-                value={modoExecucao}
-                onChange={(e) => setModoExecucao(e.target.value as ModoExecucaoQuiz)}
-              >
-                <option value="individual">Individual</option>
-                <option value="grupo">Em Equipes (com 60s de debate)</option>
-              </select>
-            </div>
-
-            <div className="toggle-box">
-              <label htmlFor="quiz-estilo">Estilo do Jogo:</label>
-              <select
-                id="quiz-estilo"
-                value={competitivo ? 'comp' : 'coop'}
-                onChange={(e) => setCompetitivo(e.target.value === 'comp')}
-              >
-                <option value="coop">🤝 Cooperativo (Meta da Sala)</option>
-                <option value="comp">🏆 Competitivo (Ranking)</option>
-              </select>
-            </div>
-
-            {!competitivo && (
-              <div className="toggle-box">
-                <label htmlFor="quiz-meta">Meta Coletiva (% acertos):</label>
-                <input
-                  id="quiz-meta"
-                  type="number"
-                  min="10"
-                  max="100"
-                  value={metaColetiva}
-                  onChange={(e) => setMetaColetiva(Number(e.target.value))}
-                />
-              </div>
-            )}
-
-            <div className="toggle-box">
-              <label htmlFor="quiz-participacao">Participação:</label>
-              <select
-                id="quiz-participacao"
-                value={obrigatorio ? 'obrig' : 'opc'}
-                onChange={(e) => setObrigatorio(e.target.value === 'obrig')}
-              >
-                <option value="obrig">Obrigatório</option>
-                <option value="opc">Opcional (aluno pode pular)</option>
-              </select>
-            </div>
           </div>
 
           {/* Perguntas */}
@@ -381,17 +321,7 @@ export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }:
               </div>
               {q.descricao && <p className="quiz-desc">{q.descricao}</p>}
 
-              <div className="quiz-card-tags">
-                <span className="tag-small">
-                  {q.modo_execucao === 'grupo' ? '👥 Grupo' : '👤 Individual'}
-                </span>
-                <span className="tag-small">
-                  {q.competitivo ? '🏆 Competitivo' : `🤝 Cooperativo (${q.meta_coletiva_percentual || 80}%)`}
-                </span>
-                <span className="tag-small">
-                  {q.obrigatorio ? 'Obrigatório' : 'Opcional'}
-                </span>
-              </div>
+
 
               <div className="quiz-card-footer">
                 <button

@@ -318,21 +318,19 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
           </div>
         </div>
 
-        <button
-          className="btn-refresh"
-          onClick={onAtualizarStatus}
-          title="Sincronizar respostas do grupo"
-        >
-          🔄 Atualizar
-        </button>
-
-        <button
-          className="btn-results"
-          onClick={handleVerResultados}
-          disabled={carregandoResultado}
-        >
-          {carregandoResultado ? 'Carregando...' : 'Ver Gabarito & Resultados'}
-        </button>
+        {status.status === 'encerrada' ? (
+          <button
+            className="btn-results"
+            onClick={handleVerResultados}
+            disabled={carregandoResultado}
+          >
+            {carregandoResultado ? 'Carregando...' : 'Ver Gabarito & Resultados'}
+          </button>
+        ) : submetido ? (
+          <p className="waiting-results-hint">
+            Aguardando o professor encerrar a atividade para liberar o gabarito.
+          </p>
+        ) : null}
       </div>
     </div>
   )

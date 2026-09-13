@@ -238,6 +238,9 @@ export default function AlunoApp() {
         setAula((prev) => (prev ? { ...prev, modo_atual: 'atividade' } : prev))
         carregarPartida(aula.id)
       }
+      if (msg.evento === 'partida_encerrada') {
+        carregarPartida(aula.id)
+      }
       if (msg.evento === 'resposta_registrada') {
         carregarPartida(aula.id)
       }
