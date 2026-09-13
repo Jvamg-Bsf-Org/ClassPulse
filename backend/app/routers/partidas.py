@@ -76,6 +76,7 @@ async def iniciar_partida(
 
     # Mudar modo da aula para atividade
     aula.modo_atual = ModoAula.atividade
+    aula.modo_atualizado_em = datetime.utcnow()
     session.add(aula)
 
     modo_execucao = dados.modo_execucao or quiz.modo_execucao
@@ -575,6 +576,7 @@ async def encerrar_partida(
 
     # Voltar modo da aula para livre ou foco
     aula.modo_atual = ModoAula.livre
+    aula.modo_atualizado_em = datetime.utcnow()
     session.add(aula)
 
     # Consolidar score_aprendizagem para cada aluno na Participacao

@@ -1,7 +1,11 @@
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from app.core.rate_limit import limiter
+from app.models import Aula
 
 
 @pytest.fixture(autouse=True)
@@ -223,3 +227,98 @@ def test_reportar_foco_sem_participar_da_aula_da_404(client: TestClient):
 
     r = client.post(f"/aulas/{aula['id']}/foco", json={"foco_segundos": 10}, headers=h_aluno)
     assert r.status_code == 404, r.text
+
+
+# ---------------------------------------------------------------------------
+# Auto-encerramento de aula esquecida (parada demais no mesmo modo)
+# ---------------------------------------------------------------------------
+
+
+def _forcar_modo_atualizado_em(session: Session, aula_id: int, ha_quanto_tempo: timedelta) -> None:
+    """Simula uma aula que ficou parada no modo atual por `ha_quanto_tempo`,
+    sem precisar esperar de verdade -- backdata o carimbo direto no banco,
+    do jeito que só o backend consegue (não existe endpoint pra isso)."""
+    aula = session.get(Aula, aula_id)
+    assert aula is not None
+    aula.modo_atualizado_em = datetime.utcnow() - ha_quanto_tempo
+    session.add(aula)
+    session.commit()
+
+
+def test_aula_parada_mais_de_1h_no_modo_livre_e_encerrada_sozinha(client: TestClient, session: Session):
+    h_prof = _cadastrar_professor(client, "prof12@escola.com")
+    turma = client.post("/turmas", json={"nome": "Sociologia"}, headers=h_prof).json()
+    aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
+
+    # entra em livre "de verdade" (marca em_andamento + carimba modo_atualizado_em)
+    client.post(f"/aulas/{aula['id']}/modo", json={"modo": "livre"}, headers=h_prof)
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(hours=1, minutes=5))
+
+    r = client.get(f"/aulas/{aula['id']}", headers=h_prof)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "encerrada"
+
+
+def test_aula_recente_no_modo_livre_nao_e_encerrada(client: TestClient, session: Session):
+    """A garantia mais importante do recurso: NUNCA fechar uma aula que está
+    realmente em uso. 50min parado em Livre ainda é normal dentro de uma aula."""
+    h_prof = _cadastrar_professor(client, "prof13@escola.com")
+    turma = client.post("/turmas", json={"nome": "Filosofia"}, headers=h_prof).json()
+    aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
+
+    client.post(f"/aulas/{aula['id']}/modo", json={"modo": "livre"}, headers=h_prof)
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(minutes=50))
+
+    r = client.get(f"/aulas/{aula['id']}", headers=h_prof)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "em_andamento"
+
+
+def test_modo_foco_tem_limite_maior_que_modo_livre(client: TestClient, session: Session):
+    """Foco cobre uma explicação teórica inteira (a própria proposta do produto
+    fala em até 50min) -- por isso tem uma folga maior que o Livre antes de
+    ser considerado abandonado."""
+    h_prof = _cadastrar_professor(client, "prof14@escola.com")
+    turma = client.post("/turmas", json={"nome": "Biologia"}, headers=h_prof).json()
+    aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
+
+    client.post(f"/aulas/{aula['id']}/modo", json={"modo": "foco"}, headers=h_prof)
+
+    # Passou de 1h (limite do Livre) mas ainda não passou de 1h30 (limite do Foco)
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(hours=1, minutes=15))
+    r = client.get(f"/aulas/{aula['id']}", headers=h_prof)
+    assert r.json()["status"] == "em_andamento", "não devia ter usado o limite do Livre pro Foco"
+
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(hours=1, minutes=35))
+    r = client.get(f"/aulas/{aula['id']}", headers=h_prof)
+    assert r.json()["status"] == "encerrada"
+
+
+def test_listar_aulas_da_turma_tambem_auto_encerra_aula_abandonada(client: TestClient, session: Session):
+    h_prof = _cadastrar_professor(client, "prof15@escola.com")
+    turma = client.post("/turmas", json={"nome": "Espanhol"}, headers=h_prof).json()
+    aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
+
+    client.post(f"/aulas/{aula['id']}/modo", json={"modo": "livre"}, headers=h_prof)
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(hours=2))
+
+    r = client.get(f"/aulas/turma/{turma['id']}", headers=h_prof)
+    assert r.status_code == 200, r.text
+    assert r.json()[0]["status"] == "encerrada"
+
+
+def test_aluno_que_entra_numa_aula_abandonada_recebe_ela_ja_encerrada(client: TestClient, session: Session):
+    """Sem isso, o aluno entraria numa aula "zumbi" que o professor esqueceu
+    aberta -- em vez de erro, ele só vê a tela normal de aula encerrada."""
+    h_prof = _cadastrar_professor(client, "prof16@escola.com")
+    h_aluno = _cadastrar_aluno(client, "aluno12@escola.com")
+    turma = client.post("/turmas", json={"nome": "Robótica"}, headers=h_prof).json()
+    aula = client.post("/aulas", json={"turma_id": turma["id"], "titulo": "Aula 1"}, headers=h_prof).json()
+    client.post("/turmas/entrar", json={"codigo_turma": turma["codigo_turma"]}, headers=h_aluno)
+
+    client.post(f"/aulas/{aula['id']}/modo", json={"modo": "livre"}, headers=h_prof)
+    _forcar_modo_atualizado_em(session, aula["id"], timedelta(hours=3))
+
+    r = client.post("/aulas/entrar", json={"codigo_aula": aula["codigo_aula"]}, headers=h_aluno)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "encerrada"

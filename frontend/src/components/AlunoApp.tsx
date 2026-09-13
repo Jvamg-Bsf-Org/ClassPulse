@@ -124,6 +124,10 @@ export default function AlunoApp() {
       if (msg.evento === 'aula_encerrada') {
         pararSessaoDeFoco()
         setAula((prev) => (prev ? { ...prev, status: 'encerrada' } : prev))
+        // A aula acabou de vez -- não faz sentido manter a conexão aberta
+        // (nem reconectar sozinho, que é o que aconteceria se só desse ws.close()
+        // no WebSocket cru). ws.close() aqui já marca "fechado de propósito".
+        ws.close()
       }
     })
 

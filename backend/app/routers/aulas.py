@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
@@ -7,10 +7,41 @@ from app.core.codes import gerar_codigo
 from app.core.ws_manager import manager
 from app.db import get_session
 from app.deps import get_current_aluno, get_current_professor, get_current_user
-from app.models import Aluno, Aula, Matricula, Participacao, Professor, StatusAula, Turma
+from app.models import Aluno, Aula, Matricula, ModoAula, Participacao, Professor, StatusAula, Turma
 from app.schemas import AulaCreate, AulaEntrarRequest, AulaModoRequest, AulaRead, FocoScoreRequest
 
 router = APIRouter(prefix="/aulas", tags=["aulas"])
+
+# Tempo parado no MESMO modo (não o tempo total da aula) que faz a aula ser
+# considerada esquecida/abandonada e ser encerrada sozinha. Os limites são
+# generosos o bastante pra nunca pegar uma aula que está realmente em uso --
+# Foco é maior porque uma explicação teórica legítima já passa dos 50min
+# (ver o pitch deck), Livre normalmente é usado em rajadas mais curtas.
+_LIMITE_INATIVIDADE_POR_MODO: dict[ModoAula, timedelta] = {
+    ModoAula.livre: timedelta(hours=1),
+    ModoAula.foco: timedelta(hours=1, minutes=30),
+}
+
+
+async def _fechar_se_abandonada(session: Session, aula: Aula) -> Aula:
+    """Auto-encerra uma aula que ficou parada tempo demais no mesmo modo,
+    sem depender de nenhum processo em background: roda de forma preguiçosa
+    sempre que alguém (professor ou aluno) toca nessa aula."""
+    if aula.status != StatusAula.em_andamento or aula.modo_atualizado_em is None:
+        return aula
+
+    limite = _LIMITE_INATIVIDADE_POR_MODO.get(aula.modo_atual)
+    if limite is None or datetime.utcnow() - aula.modo_atualizado_em < limite:
+        return aula
+
+    aula.status = StatusAula.encerrada
+    aula.encerrada_em = datetime.utcnow()
+    session.add(aula)
+    session.commit()
+    session.refresh(aula)
+
+    await manager.broadcast(aula.id, {"evento": "aula_encerrada"})
+    return aula
 
 
 def _codigo_aula_disponivel(session: Session, codigo: str) -> bool:
@@ -33,15 +64,16 @@ def _aula_do_professor(session: Session, aula_id: int, professor: Professor) -> 
 
 
 @router.get("/turma/{turma_id}", response_model=list[AulaRead])
-def listar_aulas_da_turma(
+async def listar_aulas_da_turma(
     turma_id: int,
     professor: Professor = Depends(get_current_professor),
     session: Session = Depends(get_session),
 ) -> list[Aula]:
     _turma_do_professor(session, turma_id, professor)
-    return list(
+    aulas = list(
         session.exec(select(Aula).where(Aula.turma_id == turma_id).order_by(Aula.created_at.desc()))
     )
+    return [await _fechar_se_abandonada(session, aula) for aula in aulas]
 
 
 @router.post("", response_model=AulaRead, status_code=status.HTTP_201_CREATED)
@@ -64,7 +96,7 @@ def criar_aula(
 
 
 @router.post("/entrar", response_model=AulaRead)
-def entrar_na_aula(
+async def entrar_na_aula(
     dados: AulaEntrarRequest,
     aluno: Aluno = Depends(get_current_aluno),
     session: Session = Depends(get_session),
@@ -80,6 +112,8 @@ def entrar_na_aula(
     if matriculado is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Você não está matriculado na turma desta aula")
 
+    aula = await _fechar_se_abandonada(session, aula)
+
     participacao = session.exec(
         select(Participacao).where(Participacao.aula_id == aula.id, Participacao.aluno_id == aluno.id)
     ).first()
@@ -91,7 +125,7 @@ def entrar_na_aula(
 
 
 @router.get("/{aula_id}", response_model=AulaRead)
-def obter_aula(
+async def obter_aula(
     aula_id: int,
     user_info: tuple[str, Aluno | Professor] = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -110,7 +144,7 @@ def obter_aula(
         if participacao is None:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Você não participa desta aula")
 
-    return aula
+    return await _fechar_se_abandonada(session, aula)
 
 
 @router.post("/{aula_id}/modo", response_model=AulaRead)
@@ -123,6 +157,7 @@ async def mudar_modo(
     aula = _aula_do_professor(session, aula_id, professor)
 
     aula.modo_atual = dados.modo
+    aula.modo_atualizado_em = datetime.utcnow()
     if aula.status == StatusAula.nao_iniciada:
         aula.status = StatusAula.em_andamento
         aula.iniciada_em = datetime.utcnow()

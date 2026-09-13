@@ -76,6 +76,9 @@ class Aula(SQLModel, table=True):
     codigo_aula: str = Field(unique=True, index=True)
     modo_atual: ModoAula = Field(default=ModoAula.livre)
     status: StatusAula = Field(default=StatusAula.nao_iniciada)
+    # Marca a última vez que o modo realmente mudou (não a criação da aula) --
+    # é o sinal usado pra auto-encerrar aula esquecida aberta (ver aulas.py).
+    modo_atualizado_em: datetime | None = Field(default=None)
     iniciada_em: datetime | None = Field(default=None)
     encerrada_em: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
