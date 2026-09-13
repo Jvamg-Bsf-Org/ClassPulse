@@ -279,9 +279,9 @@ export async function criarQuiz(dados: {
   turma_id?: number
   titulo: string
   descricao?: string
-  modo_execucao: ModoExecucaoQuiz
-  competitivo: boolean
-  obrigatorio: boolean
+  modo_execucao?: ModoExecucaoQuiz
+  competitivo?: boolean
+  obrigatorio?: boolean
   meta_coletiva_percentual?: number
   perguntas: PerguntaCompleta[]
 }): Promise<QuizResumo> {
