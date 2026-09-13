@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { ModoExecucaoQuiz, PerguntaCompleta, QuizResumo } from '../types/game'
 
-import { criarQuiz, deletarQuiz, listarQuizzes } from '../services/api'
+import { criarQuiz, deletarQuiz, listarQuizzes, listarQuizzesDaTurma } from '../services/api'
 
 interface Props {
+  turmaId?: number
   onIniciarPartidaComQuiz?: (quizId: number) => void
 }
 
-export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
+export default function TeacherQuizManager({ turmaId, onIniciarPartidaComQuiz }: Props) {
   const [quizzes, setQuizzes] = useState<QuizResumo[]>([])
   const [carregando, setCarregando] = useState(true)
   const [criando, setCriando] = useState(false)
@@ -38,7 +39,7 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
   async function carregar() {
     setCarregando(true)
     try {
-      const data = await listarQuizzes()
+      const data = turmaId ? await listarQuizzesDaTurma(turmaId) : await listarQuizzes()
       setQuizzes(data)
     } catch (err: any) {
       console.error(err)
@@ -49,7 +50,7 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
 
   useEffect(() => {
     carregar()
-  }, [])
+  }, [turmaId])
 
   function handleAddPergunta() {
     setPerguntas((prev) => [
@@ -122,6 +123,7 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
     setSalvando(true)
     try {
       await criarQuiz({
+        turma_id: turmaId,
         titulo,
         descricao,
         modo_execucao: modoExecucao,
@@ -130,7 +132,7 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
         meta_coletiva_percentual: competitivo ? undefined : metaColetiva,
         perguntas,
       })
-      alert('Quiz salvo com sucesso no seu banco de questões!')
+      alert('Quiz salvo com sucesso no banco de questões da turma!')
       setCriando(false)
       // reset form
       setTitulo('')
@@ -157,9 +159,11 @@ export default function TeacherQuizManager({ onIniciarPartidaComQuiz }: Props) {
     <div className="teacher-quiz-manager pulse-fade-in">
       <div className="section-header">
         <div>
-          <h2>Banco de Quizzes do Professor</h2>
+          <h2>{turmaId ? 'Banco de Quizzes da Turma' : 'Banco de Quizzes'}</h2>
           <p className="subtitle">
-            Crie quizzes uma vez e reutilize em qualquer aula ou turma.
+            {turmaId
+              ? 'Quizzes e atividades cadastrados especificamente para esta turma.'
+              : 'Crie quizzes e organize suas atividades interativas.'}
           </p>
         </div>
         <button className="btn-primary" onClick={() => setCriando(!criando)}>
