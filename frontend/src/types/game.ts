@@ -35,6 +35,7 @@ export interface PerguntaCompleta {
 export interface QuizResumo {
   id: number
   professor_id?: number
+  turma_id?: number
   titulo: string
   descricao?: string
   modo_execucao: ModoExecucaoQuiz
