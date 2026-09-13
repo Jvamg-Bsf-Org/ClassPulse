@@ -12,16 +12,18 @@ import {
   listarQuizzes,
   obterStatusProfessor,
 } from '../services/api'
-import ResultsView from './ResultsView'
+import TeacherResultsView from './TeacherResultsView'
 
 interface Props {
   aulaId: number
+  turmaId?: number
   activePartidaId?: number | null
   onPartidaCriada?: (partidaId: number) => void
 }
 
 export default function TeacherGameDashboard({
   aulaId,
+  turmaId,
   activePartidaId,
   onPartidaCriada,
 }: Props) {
@@ -39,9 +41,9 @@ export default function TeacherGameDashboard({
   const [metaColetiva, setMetaColetiva] = useState(80)
   const [tempoMinutos, setTempoMinutos] = useState(5)
 
-  // Carregar lista de quizzes
+  // Carregar lista de quizzes (filtrada por turma se fornecida)
   useEffect(() => {
-    listarQuizzes().then((data) => {
+    listarQuizzes(turmaId).then((data) => {
       setQuizzes(data)
       if (data.length > 0) {
         setSelectedQuizId((prev) => prev ?? data[0].id)
@@ -117,7 +119,7 @@ export default function TeacherGameDashboard({
   }
 
   if (resultadoFinal) {
-    return <ResultsView resultado={resultadoFinal} onVoltar={() => setResultadoFinal(null)} />
+    return <TeacherResultsView resultado={resultadoFinal} onVoltar={() => setResultadoFinal(null)} />
   }
 
   return (
