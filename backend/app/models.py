@@ -75,8 +75,8 @@ class Aula(SQLModel, table=True):
     titulo: str
     codigo_aula: str = Field(unique=True, index=True)
     modo_atual: ModoAula = Field(default=ModoAula.livre)
-    status: StatusAula = Field(default=StatusAula.nao_iniciada)
-    iniciada_em: datetime | None = Field(default=None)
+    status: StatusAula = Field(default=StatusAula.em_andamento)
+    iniciada_em: datetime | None = Field(default_factory=datetime.utcnow)
     encerrada_em: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -66,7 +66,13 @@ def criar_aula(
     while not _codigo_aula_disponivel(session, codigo):
         codigo = gerar_codigo()
 
-    aula = Aula(turma_id=dados.turma_id, titulo=dados.titulo, codigo_aula=codigo)
+    aula = Aula(
+        turma_id=dados.turma_id,
+        titulo=dados.titulo,
+        codigo_aula=codigo,
+        status=StatusAula.em_andamento,
+        iniciada_em=datetime.utcnow(),
+    )
     session.add(aula)
     session.commit()
     session.refresh(aula)

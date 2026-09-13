@@ -72,6 +72,8 @@ class AulaRead(BaseModel):
     codigo_aula: str
     modo_atual: ModoAula
     status: StatusAula
+    iniciada_em: datetime | None = None
+    encerrada_em: datetime | None = None
     created_at: datetime
 
 
