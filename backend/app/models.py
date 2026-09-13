@@ -105,6 +105,7 @@ class Quiz(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     professor_id: int | None = Field(default=None, foreign_key="professores.id", index=True)
+    turma_id: int | None = Field(default=None, foreign_key="turmas.id", index=True)
     aula_id: int | None = Field(default=None, foreign_key="aulas.id", index=True)
     titulo: str
     descricao: str | None = Field(default=None)

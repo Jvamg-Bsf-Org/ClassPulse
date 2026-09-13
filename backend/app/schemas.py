@@ -139,6 +139,7 @@ class PerguntaAlunoRead(BaseModel):
 
 
 class QuizCreate(BaseModel):
+    turma_id: int | None = None
     titulo: str
     descricao: str | None = None
     modo_execucao: ModoExecucaoQuiz = ModoExecucaoQuiz.individual
@@ -151,6 +152,7 @@ class QuizCreate(BaseModel):
 class QuizRead(BaseModel):
     id: int
     professor_id: int | None = None
+    turma_id: int | None = None
     titulo: str
     descricao: str | None = None
     modo_execucao: ModoExecucaoQuiz
@@ -255,4 +257,93 @@ class PartidaResultadoRead(BaseModel):
     meta_coletiva_atingida: bool = False
     gabarito: list[PerguntaRead] = []
     ranking: list[RankingItem] | None = None
+
+
+# ==========================================
+# Métricas e Detalhes do Aluno
+# ==========================================
+class MetricasAlunoResponse(BaseModel):
+    media_foco_segundos: float = 0.0
+    media_atividade: float = 0.0  # 0 a 100
+    total_foco_segundos: int = 0
+    total_turmas: int = 0
+    total_aulas_participadas: int = 0
+
+
+class AulaAlunoDetalhe(BaseModel):
+    id: int
+    turma_id: int
+    titulo: str
+    codigo_aula: str
+    status: StatusAula
+    modo_atual: ModoAula
+    created_at: datetime
+    participou: bool = False
+    score_foco_segundos: int = 0
+    score_aprendizagem: int = 0
+
+
+class TurmaAlunoDetalhesResponse(BaseModel):
+    turma: TurmaRead
+    media_foco_segundos: float = 0.0
+    media_atividade: float = 0.0
+    total_aulas: int = 0
+    aulas_participadas: int = 0
+    aulas: list[AulaAlunoDetalhe] = []
+
+
+class HistoricoAulaItem(BaseModel):
+    aula_id: int
+    turma_id: int
+    turma_nome: str
+    aula_titulo: str
+    codigo_aula: str
+    status: StatusAula
+    created_at: datetime
+    score_foco_segundos: int = 0
+    score_aprendizagem: int = 0
+
+
+# Fase 2+: Schemas para Dashboard e Estatísticas do Professor
+class AulaResumoProfessor(BaseModel):
+    id: int
+    turma_id: int
+    turma_nome: str
+    titulo: str
+    codigo_aula: str
+    status: StatusAula
+    modo_atual: ModoAula
+    created_at: datetime
+    total_alunos_participantes: int = 0
+    media_foco_segundos: float = 0.0
+    media_atividade: float = 0.0
+
+
+class MetricasProfessorResponse(BaseModel):
+    total_turmas: int = 0
+    total_aulas: int = 0
+    total_alunos: int = 0
+    media_foco_geral_segundos: float = 0.0
+    media_atividades_geral: float = 0.0
+    aulas_recentes: list[AulaResumoProfessor] = []
+
+
+class AlunoDesempenhoTurma(BaseModel):
+    id: int
+    nome: str
+    email: str
+    matriculado_em: datetime
+    total_aulas_participadas: int = 0
+    media_foco_segundos: float = 0.0
+    media_atividade: float = 0.0
+
+
+class EstatisticasTurmaProfessorResponse(BaseModel):
+    turma: TurmaRead
+    total_alunos: int = 0
+    total_aulas: int = 0
+    media_foco_segundos: float = 0.0
+    media_atividade: float = 0.0
+    alunos: list[AlunoDesempenhoTurma] = []
+
 

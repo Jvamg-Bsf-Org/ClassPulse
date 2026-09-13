@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.deps import get_current_professor
-from app.models import Alternativa, Pergunta, Professor, Quiz
+from app.models import Alternativa, Pergunta, Professor, Quiz, Turma
 from app.schemas import (
     AlternativaCreate,
     PerguntaCreate,
@@ -23,6 +23,7 @@ def criar_quiz(
 ) -> QuizDetailRead:
     quiz = Quiz(
         professor_id=professor.id,
+        turma_id=dados.turma_id,
         titulo=dados.titulo,
         descricao=dados.descricao,
         modo_execucao=dados.modo_execucao,
@@ -61,10 +62,14 @@ def criar_quiz(
 
 @router.get("/meus", response_model=list[QuizRead])
 def listar_meus_quizzes(
+    turma_id: int | None = None,
     professor: Professor = Depends(get_current_professor),
     session: Session = Depends(get_session),
 ) -> list[QuizRead]:
-    quizzes = session.exec(select(Quiz).where(Quiz.professor_id == professor.id)).all()
+    query = select(Quiz).where(Quiz.professor_id == professor.id)
+    if turma_id is not None:
+        query = query.where(Quiz.turma_id == turma_id)
+    quizzes = session.exec(query).all()
     resultado = []
     for q in quizzes:
         perguntas = session.exec(select(Pergunta).where(Pergunta.quiz_id == q.id)).all()
@@ -72,6 +77,41 @@ def listar_meus_quizzes(
             QuizRead(
                 id=q.id,
                 professor_id=q.professor_id,
+                turma_id=q.turma_id,
+                titulo=q.titulo,
+                descricao=q.descricao,
+                modo_execucao=q.modo_execucao,
+                competitivo=q.competitivo,
+                obrigatorio=q.obrigatorio,
+                meta_coletiva_percentual=q.meta_coletiva_percentual,
+                created_at=q.created_at,
+                total_perguntas=len(perguntas),
+            )
+        )
+    return resultado
+
+
+@router.get("/turma/{turma_id}", response_model=list[QuizRead])
+def listar_quizzes_da_turma(
+    turma_id: int,
+    professor: Professor = Depends(get_current_professor),
+    session: Session = Depends(get_session),
+) -> list[QuizRead]:
+    turma = session.get(Turma, turma_id)
+    if not turma or turma.professor_id != professor.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Turma não encontrada")
+
+    quizzes = session.exec(
+        select(Quiz).where(Quiz.turma_id == turma_id, Quiz.professor_id == professor.id)
+    ).all()
+    resultado = []
+    for q in quizzes:
+        perguntas = session.exec(select(Pergunta).where(Pergunta.quiz_id == q.id)).all()
+        resultado.append(
+            QuizRead(
+                id=q.id,
+                professor_id=q.professor_id,
+                turma_id=q.turma_id,
                 titulo=q.titulo,
                 descricao=q.descricao,
                 modo_execucao=q.modo_execucao,

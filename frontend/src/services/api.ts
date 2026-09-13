@@ -159,6 +159,70 @@ export async function turmasMatriculadas(): Promise<Turma[]> {
   return request<Turma[]>('/turmas/matriculadas')
 }
 
+export async function sairDaTurma(turmaId: number): Promise<{ message: string }> {
+  return request<{ message: string }>(`/turmas/${turmaId}/sair`, { method: 'POST' })
+}
+
+export async function excluirTurma(turmaId: number): Promise<void> {
+  return request<void>(`/turmas/${turmaId}`, { method: 'DELETE' })
+}
+
+// Métricas e Detalhes do Aluno
+export interface MetricasAluno {
+  media_foco_segundos: number
+  media_atividade: number
+  total_foco_segundos: number
+  total_turmas: number
+  total_aulas_participadas: number
+}
+
+export interface AulaAlunoDetalhe {
+  id: number
+  turma_id: number
+  titulo: string
+  codigo_aula: string
+  status: 'nao_iniciada' | 'em_andamento' | 'encerrada'
+  modo_atual: 'livre' | 'foco' | 'atividade'
+  created_at: string
+  participou: boolean
+  score_foco_segundos: number
+  score_aprendizagem: number
+}
+
+export interface TurmaAlunoDetalhes {
+  turma: Turma
+  media_foco_segundos: number
+  media_atividade: number
+  total_aulas: number
+  aulas_participadas: number
+  aulas: AulaAlunoDetalhe[]
+}
+
+export interface HistoricoAulaItem {
+  aula_id: number
+  turma_id: number
+  turma_nome: string
+  aula_titulo: string
+  codigo_aula: string
+  status: 'nao_iniciada' | 'em_andamento' | 'encerrada'
+  created_at: string
+  score_foco_segundos: number
+  score_aprendizagem: number
+}
+
+export async function obterMetricasAluno(): Promise<MetricasAluno> {
+  return request<MetricasAluno>('/alunos/metricas')
+}
+
+export async function obterDetalhesTurmaAluno(turmaId: number): Promise<TurmaAlunoDetalhes> {
+  return request<TurmaAlunoDetalhes>(`/alunos/turmas/${turmaId}/detalhes`)
+}
+
+export async function obterHistoricoAluno(): Promise<HistoricoAulaItem[]> {
+  return request<HistoricoAulaItem[]>('/alunos/historico')
+}
+
+
 // Aulas
 export interface Aula {
   id: number
@@ -202,11 +266,17 @@ export async function reportarFoco(aulaId: number, focoSegundos: number): Promis
 }
 
 // Quizzes (Professor)
-export async function listarQuizzes(): Promise<QuizResumo[]> {
-  return request<QuizResumo[]>('/quizzes/meus')
+export async function listarQuizzes(turmaId?: number): Promise<QuizResumo[]> {
+  const query = turmaId !== undefined ? `?turma_id=${turmaId}` : ''
+  return request<QuizResumo[]>(`/quizzes/meus${query}`)
+}
+
+export async function listarQuizzesDaTurma(turmaId: number): Promise<QuizResumo[]> {
+  return request<QuizResumo[]>(`/quizzes/turma/${turmaId}`)
 }
 
 export async function criarQuiz(dados: {
+  turma_id?: number
   titulo: string
   descricao?: string
   modo_execucao: ModoExecucaoQuiz
@@ -224,6 +294,58 @@ export async function criarQuiz(dados: {
 export async function deletarQuiz(quizId: number): Promise<void> {
   return request<void>(`/quizzes/${quizId}`, { method: 'DELETE' })
 }
+
+// Métricas e Estatísticas do Professor
+export interface AulaResumoProfessor {
+  id: number
+  turma_id: number
+  turma_nome: string
+  titulo: string
+  codigo_aula: string
+  status: 'nao_iniciada' | 'em_andamento' | 'encerrada'
+  modo_atual: 'livre' | 'foco' | 'atividade'
+  created_at: string
+  total_alunos_participantes: number
+  media_foco_segundos: number
+  media_atividade: number
+}
+
+export interface MetricasProfessor {
+  total_turmas: number
+  total_aulas: number
+  total_alunos: number
+  media_foco_geral_segundos: number
+  media_atividades_geral: number
+  aulas_recentes: AulaResumoProfessor[]
+}
+
+export interface AlunoDesempenhoTurma {
+  id: number
+  nome: string
+  email: string
+  matriculado_em: string
+  total_aulas_participadas: number
+  media_foco_segundos: number
+  media_atividade: number
+}
+
+export interface EstatisticasTurmaProfessor {
+  turma: Turma
+  total_alunos: number
+  total_aulas: number
+  media_foco_segundos: number
+  media_atividade: number
+  alunos: AlunoDesempenhoTurma[]
+}
+
+export async function obterMetricasProfessor(): Promise<MetricasProfessor> {
+  return request<MetricasProfessor>('/professores/metricas')
+}
+
+export async function obterEstatisticasTurmaProfessor(turmaId: number): Promise<EstatisticasTurmaProfessor> {
+  return request<EstatisticasTurmaProfessor>(`/professores/turmas/${turmaId}/estatisticas`)
+}
+
 
 // Partidas
 export async function iniciarPartida(

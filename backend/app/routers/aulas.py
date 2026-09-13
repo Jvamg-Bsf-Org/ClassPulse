@@ -66,14 +66,24 @@ def _aula_do_professor(session: Session, aula_id: int, professor: Professor) -> 
 @router.get("/turma/{turma_id}", response_model=list[AulaRead])
 async def listar_aulas_da_turma(
     turma_id: int,
-    professor: Professor = Depends(get_current_professor),
+    user_info: tuple[str, Aluno | Professor] = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list[Aula]:
-    _turma_do_professor(session, turma_id, professor)
+    tipo, usuario = user_info
+    if tipo == "professor":
+        _turma_do_professor(session, turma_id, usuario)
+    else:
+        matricula = session.exec(
+            select(Matricula).where(Matricula.turma_id == turma_id, Matricula.aluno_id == usuario.id)
+        ).first()
+        if matricula is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Você não está matriculado nesta turma")
+
     aulas = list(
         session.exec(select(Aula).where(Aula.turma_id == turma_id).order_by(Aula.created_at.desc()))
     )
     return [await _fechar_se_abandonada(session, aula) for aula in aulas]
+
 
 
 @router.post("", response_model=AulaRead, status_code=status.HTTP_201_CREATED)

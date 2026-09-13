@@ -16,10 +16,29 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
   const [totaisSegundos, setTotaisSegundos] = useState<number | null>(
     status.segundos_totais_restantes ?? null
   )
+
+  // Respostas já enviadas e persistidas no backend
   const [respostas, setRespostas] = useState<Record<number, number | null>>(
     status.respostas_enviadas || {}
   )
-  const [enviando, setEnviando] = useState<number | null>(null)
+
+  // Seleções locais do aluno antes do Submit final
+  const [selecoesLocais, setSelecoesLocais] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {}
+    if (status.respostas_enviadas) {
+      for (const [k, v] of Object.entries(status.respostas_enviadas)) {
+        if (v !== null) initial[Number(k)] = v
+      }
+    }
+    return initial
+  })
+
+  // Flag indicando se o aluno já enviou as respostas ao professor
+  const [submetido, setSubmetido] = useState<boolean>(
+    Boolean(status.respostas_enviadas && Object.keys(status.respostas_enviadas).length > 0)
+  )
+
+  const [enviando, setEnviando] = useState(false)
   const [pulou, setPulou] = useState(status.pulou)
   const [resultadoFinal, setResultadoFinal] = useState<PartidaResultado | null>(null)
   const [carregandoResultado, setCarregandoResultado] = useState(false)
@@ -50,7 +69,18 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
 
   // Sincronizar respostas do prop
   useEffect(() => {
-    setRespostas(status.respostas_enviadas || {})
+    const backendRespostas = status.respostas_enviadas || {}
+    setRespostas(backendRespostas)
+    if (Object.keys(backendRespostas).length > 0) {
+      setSubmetido(true)
+      setSelecoesLocais((prev) => {
+        const merged = { ...prev }
+        for (const [k, v] of Object.entries(backendRespostas)) {
+          if (v !== null) merged[Number(k)] = v
+        }
+        return merged
+      })
+    }
     setDiscussaoSegundos(status.segundos_discussao_restantes || 0)
     setTotaisSegundos(status.segundos_totais_restantes ?? null)
     setPulou(status.pulou)
@@ -58,19 +88,45 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
 
   const podeResponder = discussaoSegundos === 0 && (totaisSegundos === null || totaisSegundos > 0)
 
-  async function handleSelecionarAlternativa(perguntaId: number, alternativaId: number) {
-    if (!podeResponder || enviando !== null) return
-    setEnviando(perguntaId)
-    // Atualização otimista
-    setRespostas((prev) => ({ ...prev, [perguntaId]: alternativaId }))
+  // Seleciona uma alternativa localmente (não envia ao professor ainda para não oscilar os dados)
+  function handleSelecionarAlternativa(perguntaId: number, alternativaId: number) {
+    if (!podeResponder || enviando || submetido) return
+    setSelecoesLocais((prev) => ({ ...prev, [perguntaId]: alternativaId }))
+  }
 
+  // Envia todas as alternativas selecionadas em lote
+  async function handleSubmeterRespostas() {
+    if (!podeResponder || enviando || submetido) return
+    const totalSelecionadas = Object.keys(selecoesLocais).length
+    const totalPerguntas = status.perguntas.length
+
+    if (totalSelecionadas === 0) {
+      alert('Por favor, selecione pelo menos uma alternativa antes de enviar.')
+      return
+    }
+
+    if (totalSelecionadas < totalPerguntas) {
+      const confirma = confirm(
+        `Você respondeu ${totalSelecionadas} de ${totalPerguntas} questões. Deseja enviar assim mesmo?`
+      )
+      if (!confirma) return
+    }
+
+    setEnviando(true)
     try {
-      await responderPergunta(status.id, perguntaId, alternativaId)
+      await Promise.all(
+        Object.entries(selecoesLocais).map(([pId, aId]) =>
+          responderPergunta(status.id, Number(pId), aId)
+        )
+      )
+      setSubmetido(true)
+      setRespostas(selecoesLocais)
+      onAtualizarStatus()
     } catch (err: any) {
-      alert(`Erro ao salvar: ${err.message}`)
+      alert(`Erro ao enviar respostas: ${err.message}`)
       onAtualizarStatus()
     } finally {
-      setEnviando(null)
+      setEnviando(false)
     }
   }
 
@@ -94,7 +150,6 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
     } catch {
       alert('Resultados ainda não consolidados pelo professor.')
     } finally {
-
       setCarregandoResultado(false)
     }
   }
@@ -117,13 +172,15 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
     )
   }
 
+  const qtdAtuais = Object.keys(submetido ? respostas : selecoesLocais).length
+
   return (
     <div className="student-container pulse-fade-in">
       {/* Header do Jogo */}
       <div className="student-header">
         <div className="header-top">
           <span className="badge-tag">FASE 2 • ATIVIDADE</span>
-          {!status.obrigatorio && (
+          {!status.obrigatorio && !submetido && (
             <button className="btn-skip" onClick={handlePular}>
               Pular Atividade
             </button>
@@ -179,7 +236,7 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
       {/* Lista de Perguntas em Lote */}
       <div className="questions-container">
         {status.perguntas.map((pergunta, idx) => {
-          const selecionada = respostas[pergunta.id]
+          const selecionada = submetido ? respostas[pergunta.id] : selecoesLocais[pergunta.id]
           return (
             <div key={pergunta.id} className="question-block">
               <div className="question-header">
@@ -196,13 +253,17 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
                     <button
                       key={alt.id}
                       type="button"
-                      disabled={!podeResponder}
-                      className={`option-btn ${isChecked ? 'selected' : ''} ${!podeResponder ? 'disabled' : ''}`}
+                      disabled={!podeResponder || submetido}
+                      className={`option-btn ${isChecked ? 'selected' : ''} ${!podeResponder || submetido ? 'disabled' : ''}`}
                       onClick={() => handleSelecionarAlternativa(pergunta.id, alt.id)}
                     >
                       <span className="opt-radio">{isChecked ? '●' : '○'}</span>
                       <span className="opt-text">{alt.texto}</span>
-                      {isChecked && <span className="opt-saved">✓ Salva</span>}
+                      {isChecked && (
+                        <span className="opt-saved">
+                          {submetido ? '✓ Enviada' : '✓ Selecionada'}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -212,17 +273,46 @@ export default function StudentGameView({ status, onAtualizarStatus }: Props) {
         })}
       </div>
 
+      {/* Bloco de Confirmação e Submissão Final */}
+      <div className="submit-section-card">
+        <div className="submit-info">
+          <h4>{submetido ? '✅ Atividade Enviada com Sucesso' : 'Finalizar e Enviar Respostas'}</h4>
+          <p>
+            {submetido
+              ? 'Suas respostas foram consolidadas e enviadas ao professor.'
+              : 'Você pode trocar suas opções livremente. Quando estiver pronto, clique no botão para enviar tudo ao professor.'}
+          </p>
+        </div>
+
+        {!submetido ? (
+          <button
+            type="button"
+            className="btn-primary btn-submit-answers"
+            onClick={handleSubmeterRespostas}
+            disabled={!podeResponder || enviando || Object.keys(selecoesLocais).length === 0}
+          >
+            {enviando
+              ? 'Enviando ao Professor...'
+              : `📤 Enviar Respostas (${Object.keys(selecoesLocais).length}/${status.perguntas.length})`}
+          </button>
+        ) : (
+          <div className="submitted-banner">
+            <span>✓ Respostas registradas</span>
+          </div>
+        )}
+      </div>
+
       {/* Footer com status de conclusão */}
       <div className="student-footer">
         <div className="completion-status">
           <span>
-            {Object.keys(respostas).length} de {status.perguntas.length} respondidas
+            {qtdAtuais} de {status.perguntas.length} {submetido ? 'enviadas' : 'selecionadas'}
           </span>
           <div className="mini-progress-bar">
             <div
               className="mini-fill"
               style={{
-                width: `${status.perguntas.length ? (Object.keys(respostas).length / status.perguntas.length) * 100 : 0}%`,
+                width: `${status.perguntas.length ? (qtdAtuais / status.perguntas.length) * 100 : 0}%`,
               }}
             />
           </div>
