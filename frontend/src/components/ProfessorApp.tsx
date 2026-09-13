@@ -242,7 +242,15 @@ export default function ProfessorApp() {
               ← Voltar para Turma ({turmaSelecionada.nome})
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-copy-code"
+                onClick={() => copiarParaClipboard(aulaSelecionada.codigo_aula, 'Código da Sala')}
+                title="Copiar código de entrada da sala"
+              >
+                📋 Copiar Código
+              </button>
               <span className={`status-pill status-${aulaSelecionada.status}`}>
                 {aulaSelecionada.status === 'em_andamento'
                   ? '🟢 Ao Vivo'
@@ -262,7 +270,7 @@ export default function ProfessorApp() {
             <div className="turma-title-group">
               <h2 className="turma-title-text">{aulaSelecionada.titulo}</h2>
               <span className="turma-code-badge" title="Código de Entrada da Sala">
-                Sala: {aulaSelecionada.codigo_aula}
+                Sala: #{aulaSelecionada.codigo_aula}
               </span>
             </div>
           </div>
@@ -300,67 +308,117 @@ export default function ProfessorApp() {
           </div>
         )}
 
-        {/* Banner com Código de Acesso da Aula */}
-        <div className="live-aula-code-banner">
-          <div>
-            <span className="live-label">CÓDIGO DE ENTRADA PARA OS ALUNOS:</span>
-            <div className="live-code-row">
-              <span className="live-code-big">{aulaSelecionada.codigo_aula}</span>
-              <button
-                className="btn-copy-code"
-                onClick={() => copiarParaClipboard(aulaSelecionada.codigo_aula, 'Código da Aula')}
-                title="Copiar código"
-              >
-                📋 Copiar Código
-              </button>
-            </div>
-            <p className="live-code-sub">
-              Projete este código ou compartilhe com os alunos para eles entrarem no app.
-            </p>
-          </div>
-
-          {/* Seletor de Modo de Aula */}
-          <div className="live-mode-box">
-            <span className="mode-box-label">Modo Atual da Aula:</span>
-            <div className="modo-toggle-row">
-              <button
-                className={aulaSelecionada.modo_atual === 'livre' ? 'active' : ''}
-                onClick={() => handleModo('livre')}
-              >
-                Modo Livre
-              </button>
-              <button
-                className={aulaSelecionada.modo_atual === 'foco' ? 'active' : ''}
-                onClick={() => handleModo('foco')}
-              >
-                🎯 Modo Foco
-              </button>
-            </div>
-          </div>
-        </div>
-
+        {/* CONTEÚDO DAS SUB-ABAS DA AULA */}
         {abaControle === 'controle' && (
           <div className="tab-content fade-in" style={{ marginTop: '1rem' }}>
-            <div className="aula-control-info-card">
-              <h3>Orientações da Sessão</h3>
-              <ul>
-                <li>
-                  <strong>🎯 Modo Foco:</strong> Ativa os sensores de atenção e cronômetros de concentração nos celulares dos alunos em tempo real.
-                </li>
-                <li>
-                  <strong>⚡ Disparar Atividade:</strong> Permite escolher um quiz do banco desta turma e disparar perguntas síncronas com ranking ou metas coletivas.
-                </li>
-                <li>
-                  <strong>🔒 Privacidade:</strong> O score de foco de cada aluno permanece individual e formativo.
-                </li>
-              </ul>
-              <div style={{ marginTop: '1rem' }}>
-                <button
-                  className="btn-primary"
-                  onClick={() => setAbaControle('atividade')}
-                >
-                  Ir para Disparo de Atividades →
-                </button>
+            <div className="live-panel-grid">
+              {/* Card 1: Controle de Modo da Aula em Tempo Real */}
+              <div className="live-panel-card">
+                <div className="live-panel-card-header">
+                  <div>
+                    <h3>🎯 Modo da Sala em Tempo Real</h3>
+                    <p className="subtitle-text">
+                      Defina e alterne instantaneamente como os celulares dos alunos se comportam durante a aula.
+                    </p>
+                  </div>
+                  <span className={`status-pill ${aulaSelecionada.modo_atual === 'foco' ? 'status-em_andamento' : 'status-encerrada'}`}>
+                    {aulaSelecionada.modo_atual === 'foco' ? '🎯 Modo Foco Ativo' : '🌐 Modo Livre Ativo'}
+                  </span>
+                </div>
+
+                <div className="modo-toggle-row">
+                  <button
+                    type="button"
+                    className={aulaSelecionada.modo_atual === 'livre' ? 'active' : ''}
+                    onClick={() => handleModo('livre')}
+                  >
+                    🌐 Modo Livre
+                  </button>
+                  <button
+                    type="button"
+                    className={aulaSelecionada.modo_atual === 'foco' ? 'active' : ''}
+                    onClick={() => handleModo('foco')}
+                  >
+                    🎯 Modo Foco
+                  </button>
+                </div>
+
+                <div className={`mode-status-callout ${aulaSelecionada.modo_atual === 'foco' ? 'focus-active' : 'libre-active'}`}>
+                  {aulaSelecionada.modo_atual === 'foco' ? (
+                    <span>
+                      <strong>🎯 Modo Foco Ativo:</strong> Os sensores de atenção e cronômetros de concentração estão monitorando os celulares dos alunos em tempo real.
+                    </span>
+                  ) : (
+                    <span>
+                      <strong>🌐 Modo Livre Ativo:</strong> Os alunos têm acesso livre à navegação pelo app para anotações e pesquisas.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 2: Projeção do Código de Entrada */}
+              <div className="live-panel-card">
+                <div className="live-panel-card-header">
+                  <div>
+                    <h3>📺 Entrada dos Alunos na Sala</h3>
+                    <p className="subtitle-text">
+                      Projete este código no projetor ou compartilhe para que os alunos ingressem no app.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="live-projection-box">
+                  <div className="live-projection-info">
+                    <span className="live-label">CÓDIGO DE ENTRADA DA SALA</span>
+                    <span className="live-projection-code">#{aulaSelecionada.codigo_aula}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => copiarParaClipboard(aulaSelecionada.codigo_aula, 'Código da Sala')}
+                    title="Copiar código de entrada"
+                  >
+                    📋 Copiar Código da Sala
+                  </button>
+                </div>
+                <p className="live-code-sub">
+                  Os alunos matriculados na turma devem acessar a turma no ClassPulse ou digitar este código para entrar na sessão ao vivo.
+                </p>
+              </div>
+
+              {/* Card 3: Atividades e Quizzes Interativos */}
+              <div className="live-panel-card">
+                <div className="live-panel-card-header">
+                  <div>
+                    <h3>⚡ Atividades e Quizzes da Turma</h3>
+                    <p className="subtitle-text">
+                      Dispare perguntas síncronas do banco de quizzes desta turma com metas cooperativas anti-ansiedade ou rankings em tempo real.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setAbaControle('atividade')}
+                  >
+                    Ir para Disparo de Atividades →
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 4: Orientações da Sessão */}
+              <div className="live-panel-card">
+                <h3 style={{ marginBottom: '0.75rem' }}>💡 Orientações da Sessão</h3>
+                <ul className="session-guidelines-list">
+                  <li>
+                    <strong>🎯 Modo Foco:</strong> Estimula a retenção desincentivando o uso secundário do aparelho durante a explicação.
+                  </li>
+                  <li>
+                    <strong>⚡ Atividade na Sala:</strong> Transforma o momento de fixação em uma dinâmica envolvente sem gerar estresse ou sobrecarga.
+                  </li>
+                  <li>
+                    <strong>🔒 Privacidade Formativa:</strong> O score de foco de cada aluno é individual, voltado para autorregulação e aprendizado contínuo.
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

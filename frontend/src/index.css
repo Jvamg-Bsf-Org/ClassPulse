@@ -1824,17 +1824,10 @@ body {
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.turma-card:hover {
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  background: var(--surface-hover);
 }
 
 .turma-card-header {
@@ -1876,6 +1869,16 @@ body {
   border-top: 1px solid var(--surface-border);
   padding-top: 0.75rem;
   margin-top: auto;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.turma-card-action:hover {
+  color: var(--primary-hover);
+}
+
+.turma-card-action:hover .arrow-icon {
+  transform: translateX(4px);
 }
 
 /* Visão de Detalhes da Turma e Header Moderno */
@@ -2575,19 +2578,76 @@ body {
 }
 
 /* ======================================================== */
-/* ESTILOS: LIVE AULA CONTROL BANNER                        */
+/* ESTILOS: LIVE AULA CONTROL PANEL                         */
 /* ======================================================== */
-.live-aula-code-banner {
+.live-panel-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.live-panel-card {
   background: var(--surface-card);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.live-panel-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.live-panel-card-header h3 {
+  font-size: 1.15rem;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mode-status-callout {
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
   margin-top: 1rem;
+}
+
+.mode-status-callout.focus-active {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.mode-status-callout.libre-active {
+  background: rgba(59, 143, 196, 0.1);
+  border: 1px solid rgba(59, 143, 196, 0.3);
+  color: #93c5fd;
+}
+
+.live-projection-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.live-projection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .live-label {
@@ -2596,57 +2656,38 @@ body {
   color: var(--primary);
   letter-spacing: 0.05em;
   display: block;
-  margin-bottom: 0.25rem;
 }
 
-.live-code-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.live-code-big {
+.live-projection-code {
+  font-family: monospace;
   font-size: 2.2rem;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: #fff;
-  font-family: monospace;
 }
 
 .live-code-sub {
   font-size: 0.825rem;
   color: var(--text-muted);
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
 }
 
-.live-mode-box {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: flex-end;
-}
-
-.mode-box-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.aula-control-info-card {
-  background: var(--surface-card);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-}
-
-.aula-control-info-card ul {
+.session-guidelines-list {
   padding-left: 1.25rem;
-  margin: 1rem 0;
+  margin: 0.5rem 0 0 0;
   line-height: 1.6;
   color: var(--text-muted);
 }
 
-.aula-control-info-card li strong {
+.session-guidelines-list li {
+  margin-bottom: 0.5rem;
+}
+
+.session-guidelines-list li:last-child {
+  margin-bottom: 0;
+}
+
+.session-guidelines-list li strong {
   color: #fff;
 }
 
