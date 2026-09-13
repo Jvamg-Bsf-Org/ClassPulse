@@ -2612,25 +2612,6 @@ body {
   gap: 0.5rem;
 }
 
-.mode-status-callout {
-  padding: 0.85rem 1.15rem;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin-top: 1rem;
-}
-
-.mode-status-callout.focus-active {
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #86efac;
-}
-
-.mode-status-callout.libre-active {
-  background: rgba(59, 143, 196, 0.1);
-  border: 1px solid rgba(59, 143, 196, 0.3);
-  color: #93c5fd;
-}
 
 .session-guidelines-footer {
   padding: 0.75rem 0.5rem 0.25rem 0.5rem;

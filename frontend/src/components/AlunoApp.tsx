@@ -625,9 +625,10 @@ export default function AlunoApp() {
                     type="button"
                     className="btn-danger-sm"
                     onClick={() => handleSairTurma(turmaSelecionada.id, turmaSelecionada.nome)}
+                    disabled={carregando}
                     title="Sair desta turma"
                   >
-                    🚪 Sair da Turma
+                    {carregando ? 'Saindo...' : 'Sair da Turma'}
                   </button>
                 </div>
 

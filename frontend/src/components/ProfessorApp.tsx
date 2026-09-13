@@ -54,6 +54,9 @@ export default function ProfessorApp() {
 
   // Feedback
   const [carregando, setCarregando] = useState(false)
+  const [alterandoModo, setAlterandoModo] = useState<Aula['modo_atual'] | null>(null)
+  const [encerrandoAula, setEncerrandoAula] = useState(false)
+  const [excluindoTurmaId, setExcluindoTurmaId] = useState<number | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
 
@@ -136,6 +139,7 @@ export default function ProfessorApp() {
   }
 
   async function handleExcluirTurma(turmaId: number, turmaNome: string) {
+    if (excluindoTurmaId !== null) return
     if (
       !confirm(
         `ATENÇÃO: Deseja realmente excluir a turma "${turmaNome}"?\n\nEsta ação excluirá permanentemente a turma para você e para TODOS os alunos matriculados, além de todas as aulas, quizzes e dados relacionados.`
@@ -144,7 +148,7 @@ export default function ProfessorApp() {
       return
     }
 
-    setCarregando(true)
+    setExcluindoTurmaId(turmaId)
     setErro(null)
     setSucesso(null)
     try {
@@ -159,7 +163,7 @@ export default function ProfessorApp() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao excluir turma.')
     } finally {
-      setCarregando(false)
+      setExcluindoTurmaId(null)
     }
   }
 
@@ -187,18 +191,21 @@ export default function ProfessorApp() {
   }
 
   async function handleModo(modo: Aula['modo_atual']) {
-    if (!aulaSelecionada) return
+    if (!aulaSelecionada || alterandoModo !== null) return
+    setAlterandoModo(modo)
     try {
       const a = await mudarModoAula(aulaSelecionada.id, modo)
       setAulaSelecionada(a)
       setAulas((prev) => prev.map((item) => (item.id === a.id ? a : item)))
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao alterar modo da aula.')
+    } finally {
+      setAlterandoModo(null)
     }
   }
 
   async function handleEncerrarAula() {
-    if (!aulaSelecionada) return
+    if (!aulaSelecionada || encerrandoAula) return
     if (
       !confirm(
         'Deseja encerrar esta aula? Os alunos não poderão mais reportar foco nem participar das atividades.'
@@ -206,6 +213,7 @@ export default function ProfessorApp() {
     ) {
       return
     }
+    setEncerrandoAula(true)
     try {
       const a = await encerrarAula(aulaSelecionada.id)
       setAulaSelecionada(a)
@@ -214,6 +222,8 @@ export default function ProfessorApp() {
       carregarDadosGerais()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao encerrar aula.')
+    } finally {
+      setEncerrandoAula(false)
     }
   }
 
@@ -249,18 +259,22 @@ export default function ProfessorApp() {
                 onClick={() => copiarParaClipboard(aulaSelecionada.codigo_aula, 'Código da Sala')}
                 title="Copiar código de entrada da sala"
               >
-                📋 Copiar Código
+                Copiar Código da Sala
               </button>
               <span className={`status-pill status-${aulaSelecionada.status}`}>
                 {aulaSelecionada.status === 'em_andamento'
-                  ? '🟢 Ao Vivo'
+                  ? 'Ao Vivo'
                   : aulaSelecionada.status === 'encerrada'
-                    ? '⚪ Encerrada'
-                    : '⏳ Não iniciada'}
+                    ? 'Encerrada'
+                    : 'Não iniciada'}
               </span>
               {aulaSelecionada.status !== 'encerrada' && (
-                <button className="btn-danger-sm" onClick={handleEncerrarAula}>
-                  🛑 Encerrar Aula
+                <button
+                  className="btn-danger-sm"
+                  onClick={handleEncerrarAula}
+                  disabled={encerrandoAula}
+                >
+                  {encerrandoAula ? 'Encerrando...' : 'Encerrar Aula'}
                 </button>
               )}
             </div>
@@ -316,13 +330,13 @@ export default function ProfessorApp() {
               <div className="live-panel-card">
                 <div className="live-panel-card-header">
                   <div>
-                    <h3>🎯 Modo da Sala em Tempo Real</h3>
+                    <h3>Modo da Sala em Tempo Real</h3>
                     <p className="subtitle-text">
                       Defina e alterne instantaneamente como os celulares dos alunos se comportam durante a aula.
                     </p>
                   </div>
                   <span className={`status-pill ${aulaSelecionada.modo_atual === 'foco' ? 'status-em_andamento' : 'status-encerrada'}`}>
-                    {aulaSelecionada.modo_atual === 'foco' ? '🎯 Modo Foco Ativo' : '🌐 Modo Livre Ativo'}
+                    {aulaSelecionada.modo_atual === 'foco' ? 'Modo Foco Ativo' : 'Modo Livre Ativo'}
                   </span>
                 </div>
 
@@ -330,43 +344,36 @@ export default function ProfessorApp() {
                   <button
                     type="button"
                     className={aulaSelecionada.modo_atual === 'livre' ? 'active' : ''}
+                    disabled={alterandoModo !== null}
                     onClick={() => handleModo('livre')}
                   >
-                    🌐 Modo Livre
+                    {alterandoModo === 'livre' ? 'Alternando...' : 'Modo Livre'}
                   </button>
                   <button
                     type="button"
                     className={aulaSelecionada.modo_atual === 'foco' ? 'active' : ''}
+                    disabled={alterandoModo !== null}
                     onClick={() => handleModo('foco')}
                   >
-                    🎯 Modo Foco
+                    {alterandoModo === 'foco' ? 'Alternando...' : 'Modo Foco'}
                   </button>
-                </div>
-
-                <div className={`mode-status-callout ${aulaSelecionada.modo_atual === 'foco' ? 'focus-active' : 'libre-active'}`}>
-                  {aulaSelecionada.modo_atual === 'foco' ? (
-                    <span>
-                      <strong>🎯 Modo Foco Ativo:</strong> Os sensores de atenção e cronômetros de concentração estão monitorando os celulares dos alunos em tempo real.
-                    </span>
-                  ) : (
-                    <span>
-                      <strong>🌐 Modo Livre Ativo:</strong> Os alunos têm acesso livre à navegação pelo app para anotações e pesquisas.
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {/* Orientações da Sessão (texto direto no rodapé, sem painel) */}
+              {/* Orientações da Sessão (texto direto no rodapé com explicações dos modos integrada) */}
               <div className="session-guidelines-footer">
                 <ul className="session-guidelines-list">
                   <li>
-                    <strong>🎯 Modo Foco:</strong> Estimula a retenção desincentivando o uso secundário do aparelho durante a explicação.
+                    <strong>Modo Livre:</strong> Os alunos navegam livremente no aplicativo para consultas, anotações e conteúdos da disciplina.
                   </li>
                   <li>
-                    <strong>⚡ Atividade na Sala:</strong> Transforma o momento de fixação em uma dinâmica envolvente sem gerar estresse ou sobrecarga.
+                    <strong>Modo Foco:</strong> Sensores de atenção e cronômetros de concentração monitoram os celulares dos alunos em tempo real, desincentivando distrações.
                   </li>
                   <li>
-                    <strong>🔒 Privacidade Formativa:</strong> O score de foco de cada aluno é individual, voltado para autorregulação e aprendizado contínuo.
+                    <strong>Atividades na Sala:</strong> Permite disparar perguntas síncronas do banco de quizzes desta turma com metas cooperativas ou ranking ao vivo.
+                  </li>
+                  <li>
+                    <strong>Privacidade Formativa:</strong> O score de foco de cada aluno permanece individual, voltado para autorregulação e aprendizado contínuo.
                   </li>
                 </ul>
               </div>
@@ -650,9 +657,10 @@ export default function ProfessorApp() {
                             e.stopPropagation()
                             handleExcluirTurma(t.id, t.nome)
                           }}
+                          disabled={excluindoTurmaId === t.id}
                           title="Excluir turma"
                         >
-                          🗑️
+                          {excluindoTurmaId === t.id ? '...' : '🗑️'}
                         </button>
                       </div>
 
@@ -703,9 +711,10 @@ export default function ProfessorApp() {
                       type="button"
                       className="btn-danger-sm"
                       onClick={() => handleExcluirTurma(turmaSelecionada.id, turmaSelecionada.nome)}
+                      disabled={excluindoTurmaId === turmaSelecionada.id}
                       title="Excluir turma permanentemente"
                     >
-                      🗑️ Excluir Turma
+                      {excluindoTurmaId === turmaSelecionada.id ? 'Excluindo...' : '🗑️ Excluir Turma'}
                     </button>
                   </div>
                 </div>
@@ -846,10 +855,10 @@ export default function ProfessorApp() {
                             <div className="turma-card-header">
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                                 <span className={`status-pill status-${a.status}`}>
-                                  {isAoVivo ? '🟢 Ao Vivo' : a.status === 'encerrada' ? '⚪ Encerrada' : '⏳ Não Iniciada'}
+                                  {isAoVivo ? 'Ao Vivo' : a.status === 'encerrada' ? 'Encerrada' : 'Não Iniciada'}
                                 </span>
                                 <span className="mode-badge">
-                                  {a.modo_atual === 'foco' ? '🎯 Foco' : a.modo_atual === 'atividade' ? '⚡ Atividade' : 'Livre'}
+                                  {a.modo_atual === 'foco' ? 'Foco' : a.modo_atual === 'atividade' ? 'Atividade' : 'Livre'}
                                 </span>
                               </div>
                               <span className="turma-code-pill">#{a.codigo_aula}</span>
