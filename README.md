@@ -1,6 +1,6 @@
 # ClassPulse
 
-PWA que ajuda o professor a gerenciar o uso do celular em sala de aula sem precisar confiscar o aparelho. A aula alterna entre três modos — **Livre**, **Foco** e **Atividade** — e o app acompanha dois indicadores separados: um **Score de Foco** privado do aluno (nunca visível ao professor) e um **Score de Aprendizagem** agregado, visível ao professor.
+SPA que ajuda o professor a gerenciar o uso do celular em sala de aula sem precisar confiscar o aparelho. A aula alterna entre três modos — **Livre**, **Foco** e **Atividade** — e o app acompanha dois indicadores separados: um **Score de Foco** privado do aluno (nunca visível ao professor) e um **Score de Aprendizagem** agregado, visível ao professor.
 
 Aplicação no ar: https://classpulse-app.up.railway.app/
 
